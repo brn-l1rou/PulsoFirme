@@ -21,6 +21,7 @@ class TelaDeLogin extends StatelessWidget {
                 child: Container(
                   width: 150,
                   height: 150,
+                  
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(35),
@@ -68,14 +69,24 @@ class TelaDeLogin extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 30),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Email', // O texto que fica apagadinho
+                  hintText: 'Email', // O texto que fica de hint
                   filled: true,
-                  fillColor: const Color(0xFFE5E5E5), // Fundo cinza claro
+                  fillColor: const Color(0xFFFFFFFF), // Fundo branco
                   // Tira a linha de baixo padrão do Android e arredonda as bordas
-                  border: OutlineInputBorder(
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none, 
+                    borderSide: const BorderSide(
+                      color: Color(0xFFC82B21), //borda colorida
+                      width: 2,
+                    ),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFC82B21),
+                      width: 2,
+                    )
+                  )
                 ),
               ),
             ),
@@ -91,10 +102,20 @@ class TelaDeLogin extends StatelessWidget {
                   hintText: 'Senha',
                   filled: true,
                   fillColor: const Color(0xFFE5E5E5),
-                  border: OutlineInputBorder(
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
+                    borderSide: const BorderSide(
+                      color: Color(0xFFC82B21), //borda colorida
+                      width: 2,
+                    ),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFC82B21),
+                      width: 2,
+                    )
+                  )
                 ),
               ),
             ),
@@ -138,7 +159,7 @@ class TelaDeLogin extends StatelessWidget {
               children: [
                 const Text(
                   'Não tem conta? ',
-                  style: TextStyle(color: Color(0xFF7A7A7A)), // Cinza
+                  style: TextStyle(color: Color(0xFF00BFA5)),
                 ),
                 GestureDetector( // Faz o texto ser clicável
                   onTap: () {
@@ -147,7 +168,7 @@ class TelaDeLogin extends StatelessWidget {
                   child: const Text(
                     'Cadastro',
                     style: TextStyle(
-                      color: Color(0xFF00BFA5), // O verde do seu design
+                      color: Color(0xFF00BFA5),
                       fontWeight: FontWeight.bold,
                     ),
                   ),

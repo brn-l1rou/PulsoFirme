@@ -16,7 +16,7 @@ class MeuApp extends StatelessWidget {
       theme: ThemeData(
         fontFamily: 'PlusJakartaSans', // Define a fonte padrão do app
       ), 
-      home: const TelaDeLogin(), // Chama a tela que criamos abaixo
+      home: const TelaDeLogin(), // Chama a tela que criamos
     );
   }
 }
