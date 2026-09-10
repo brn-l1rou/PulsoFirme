@@ -143,7 +143,8 @@ class TelaDeLogin extends StatelessWidget {
                   child: const Text(
                     'Login',
                     style: TextStyle(
-                      fontSize: 20, 
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
