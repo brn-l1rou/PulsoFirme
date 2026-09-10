@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cadastro_screen.dart';
 
 class TelaDeLogin extends StatelessWidget {
   const TelaDeLogin({super.key});
@@ -163,7 +164,12 @@ class TelaDeLogin extends StatelessWidget {
                 ),
                 GestureDetector( // Faz o texto ser clicável
                   onTap: () {
-                    // Aqui você chamará a navegação para a tela de Cadastro
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const TelaDeCadastro()
+                      ),
+                    );
                   },
                   child: const Text(
                     'Cadastro',
