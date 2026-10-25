@@ -2,10 +2,120 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function emailAtual() {
+      return request.auth.token.email.lower();
+    }
+
+    function usuarioDoc(uid) {
+      return get(/databases/$(database)/documents/usuarios/$(uid));
+    }
+
+    function cuidadoresDe(pacienteId) {
+      return usuarioDoc(pacienteId).data.get('cuidadoresAutorizados', []);
+    }
+
+    // RN04: só o próprio paciente ou cuidadores vinculados acessam os dados.
+    function vinculadoAoPaciente(pacienteId) {
+      return autenticado()
+        && (request.auth.uid == pacienteId
+          || request.auth.uid in cuidadoresDe(pacienteId));
+    }
+
     match /usuarios/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update: if request.auth != null && request.auth.uid == userId;
+      function camposImutaveisPreservados() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['tipoUsuario', 'email', 'criadoEm']);
+      }
+
+      // RN05: o cuidador só entra na lista do paciente se houver um convite
+      // pendente criado pelo próprio paciente para o e-mail dele.
+      function aceitandoConvite() {
+        let convitePath = /databases/$(database)/documents/convites/$(userId + '_' + emailAtual());
+        return exists(convitePath)
+          && get(convitePath).data.status == 'pendente'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['cuidadoresAutorizados'])
+          && request.resource.data.cuidadoresAutorizados.toSet()
+            == resource.data.get('cuidadoresAutorizados', []).toSet()
+              .union([request.auth.uid].toSet());
+      }
+
+      allow create: if autenticado()
+        && request.auth.uid == userId
+        && request.resource.data.tipoUsuario in ['paciente', 'cuidador'];
+
+      allow read: if autenticado()
+        && (request.auth.uid == userId
+          || request.auth.uid in resource.data.get('cuidadoresAutorizados', [])
+          || request.auth.uid in resource.data.get('pacientesVinculados', []));
+
+      allow update: if autenticado()
+        && ((request.auth.uid == userId && camposImutaveisPreservados())
+          || aceitandoConvite());
+
       allow delete: if false;
+    }
+
+    match /usuarios/{pacienteId}/medicoes/{medicaoId} {
+      // RN06: valor numérico, positivo e válido; RN07: data obrigatória.
+      function medicaoValida() {
+        let d = request.resource.data;
+        return d.valorMgdl is int
+          && d.valorMgdl > 0
+          && d.valorMgdl <= 1000
+          && d.dataMedicao is timestamp
+          && d.status in ['normal', 'acima', 'abaixo'];
+      }
+
+      allow read: if vinculadoAoPaciente(pacienteId);
+
+      allow create: if vinculadoAoPaciente(pacienteId)
+        && medicaoValida()
+        && request.resource.data.registradoPor == request.auth.uid;
+
+      // RN11/RN12: paciente e cuidadores vinculados podem editar.
+      allow update: if vinculadoAoPaciente(pacienteId)
+        && medicaoValida()
+        && request.resource.data.registradoPor == resource.data.registradoPor
+        && request.resource.data.atualizadoPor == request.auth.uid;
+
+      // RN13: cuidadores vinculados, ou o paciente sem cuidadores.
+      allow delete: if autenticado()
+        && (request.auth.uid in cuidadoresDe(pacienteId)
+          || (request.auth.uid == pacienteId
+            && cuidadoresDe(pacienteId).size() == 0));
+    }
+
+    match /convites/{conviteId} {
+      function conviteDoPaciente() {
+        let d = request.resource.data;
+        return d.pacienteId == request.auth.uid
+          && conviteId == request.auth.uid + '_' + d.emailCuidador
+          && d.status == 'pendente'
+          && usuarioDoc(request.auth.uid).data.tipoUsuario == 'paciente';
+      }
+
+      allow create: if autenticado() && conviteDoPaciente();
+
+      allow read: if autenticado()
+        && (resource.data.pacienteId == request.auth.uid
+          || resource.data.emailCuidador == emailAtual());
+
+      // O paciente pode reenviar um convite (volta para "pendente");
+      // o cuidador convidado só pode aceitar ou recusar.
+      allow update: if autenticado()
+        && ((resource.data.pacienteId == request.auth.uid && conviteDoPaciente())
+          || (resource.data.emailCuidador == emailAtual()
+            && resource.data.status == 'pendente'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'respondidoEm'])
+            && request.resource.data.status in ['aceito', 'recusado']));
+
+      allow delete: if autenticado() && resource.data.pacienteId == request.auth.uid;
     }
 
     match /{document=**} {
