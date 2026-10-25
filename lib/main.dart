@@ -1,22 +1,47 @@
-import 'package:flutter/material.dart';
+import 'package:early_pulso_firme/firebase_options.dart';
+import 'package:early_pulso_firme/screens/cadastro_screen.dart';
 import 'package:early_pulso_firme/screens/login_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MeuApp());
 }
 
-// O MaterialApp é a configuração geral do app
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Text('Home'),
+      ),
+    );
+  }
+}
+
 class MeuApp extends StatelessWidget {
   const MeuApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // remove a faixa "debug"
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'PlusJakartaSans', // Define a fonte padrão do app
-      ), 
-      home: const TelaDeLogin(), // Chama a tela que criamos
+        fontFamily: 'PlusJakartaSans',
+      ),
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const TelaLogin(),
+        '/cadastro': (context) => const TelaDeCadastro(),
+        '/home': (context) => const HomeScreen(),
+      },
     );
   }
 }

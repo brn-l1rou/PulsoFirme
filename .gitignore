@@ -3,7 +3,12 @@
 *.log
 *.pyc
 *.swp
+*.swo
+*.tmp
+*.temp
+*.orig
 .DS_Store
+.Thumbs.db
 .atom/
 .build/
 .buildlog/
@@ -12,18 +17,14 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IDE / editors
 *.iml
 *.ipr
 *.iws
 .idea/
+.vscode/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -33,13 +34,54 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Symbolication related
-app.*.symbols
+# Generated or local artifacts
+.metadata
+*.jks
+*.keystore
+*.p12
+*.pfx
 
-# Obfuscation related
+# Android local environment
+android/local.properties
+android/.gradle/
+android/**/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/key.properties
+
+# iOS / macOS local environment
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/Flutter/Flutter.podspec
+macos/Pods/
+
+# Firebase / app local config
+.firebase/
+.firebase-debug.log
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase_options.dart
+*.log
+
+# Symbolication / obfuscation
+app.*.symbols
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# General local caches
+**/.cache/
+**/generated/
+
+# Avoid committing secrets and system-specific files
+.env
+.env.*
+*.pem
+*.crt
+*.key
+*.p8
+
+# Keep project config files tracked
+!firebase.json
+!.firebaserc
+!firestore.rules
+!firestore.indexes.json

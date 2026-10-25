@@ -1,196 +1,287 @@
 import 'package:flutter/material.dart';
+
+import '../controllers/login_controller.dart';
 import 'cadastro_screen.dart';
 
-class TelaDeLogin extends StatelessWidget {
-  const TelaDeLogin({super.key});
+class TelaLogin extends StatefulWidget {
+  const TelaLogin({super.key});
+
+  @override
+  State<TelaLogin> createState() => _TelaLoginState();
+}
+
+class _TelaLoginState extends State<TelaLogin> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _senhaController = TextEditingController();
+  late final LoginController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = LoginController();
+    _controller.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _senhaController.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _decoracaoCampo({
+    String? hintText,
+    required Color fillColor,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: const TextStyle(
+        color: Color(0xFF7A7A7A),
+        fontSize: 18,
+      ),
+      filled: true,
+      fillColor: fillColor,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: Color(0xFFC82B21),
+          width: 2,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: Color(0xFFC82B21),
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 2,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 2,
+        ),
+      ),
+    );
+  }
+
+  String? _validarEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe seu e-mail.';
+    }
+
+    final email = value.trim();
+    final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!regex.hasMatch(email)) {
+      return 'E-mail inválido.';
+    }
+
+    return null;
+  }
+
+  String? _validarSenha(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe sua senha.';
+    }
+
+    if (value.length < 6) {
+      return 'A senha deve ter pelo menos 6 caracteres.';
+    }
+
+    return null;
+  }
+
+  Future<void> _fazerLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final email = _emailController.text.trim();
+    final senha = _senhaController.text.trim();
+
+    final sucesso = await _controller.signIn(
+      email: email,
+      password: senha,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (sucesso) {
+      Navigator.pushReplacementNamed(context, '/home');
+      return;
+    }
+
+    final mensagem = _controller.errorMessage ?? 'Erro ao realizar login.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
-      backgroundColor: const Color(0xFFCC2B25), 
-      // SingleChildScrollView permite que a tela role se o teclado do celular abrir, 
-      // evitando que os elementos fiquem espremidos.
+      backgroundColor: const Color(0xFFCC2B25),
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              height: 300,
-              color: Colors.transparent,
-              child: Center(
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(35),
-                  ),
-                  
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(35),
-                    child: Image.asset(
-                      'assets/logo_white_background.png',
-                      fit: BoxFit.contain, // Ajusta a imagem dentro do quadrado branco
-                    ),
-                  ),
-                ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Container(
+               width: double.infinity,
+               height: 300,
+               color: Colors.transparent,
+               child: Center(
+                 child: Container(
+                   width: 150,
+                   height: 150,
+                   decoration: BoxDecoration(
+                     color: Colors.white,
+                     borderRadius: BorderRadius.circular(35),
+                   ),
+                   child: ClipRRect(
+                     borderRadius: BorderRadius.circular(35),
+                     child: Image.asset(
+                       'assets/logo_white_background.png',
+                       fit: BoxFit.contain,
+                     ),
+                   ),
+                 ),
+               ),
               ),
-            ),
-            
-
-            Container(
-              width: double.infinity,
-              // O padding interno para os elementos não colarem nas bordas
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF9F5F5), // Cor branca/off-white
-                borderRadius: BorderRadius.only(
-                  
-                  topLeft: Radius.circular(80), 
-                ),
+              Container(
+               width: double.infinity,
+               padding: const EdgeInsets.symmetric(vertical: 40),
+               decoration: const BoxDecoration(
+                 color: Color(0xFFF9F5F5),
+                 borderRadius: BorderRadius.only(
+                   topLeft: Radius.circular(80),
+                 ),
+               ),
+               child: Column(
+                 children: [
+                   const Text(
+                     'Login',
+                     style: TextStyle(
+                       fontSize: 36,
+                       fontWeight: FontWeight.bold,
+                       color: Color(0xFFCC2B25),
+                     ),
+                   ),
+                   const SizedBox(height: 40),
+                   Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 30),
+                     child: TextFormField(
+                       controller: _emailController,
+                       keyboardType: TextInputType.emailAddress,
+                       style: const TextStyle(
+                         color: Colors.black,
+                         fontSize: 18,
+                       ),
+                       decoration: _decoracaoCampo(
+                         hintText: 'Email',
+                         fillColor: const Color(0xFFFFFFFF),
+                       ),
+                       validator: _validarEmail,
+                     ),
+                   ),
+                   const SizedBox(height: 20),
+                   Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 30),
+                     child: TextFormField(
+                       controller: _senhaController,
+                       obscureText: true,
+                       style: const TextStyle(
+                         color: Colors.black,
+                         fontSize: 18,
+                       ),
+                       decoration: _decoracaoCampo(
+                         hintText: 'Senha',
+                         fillColor: const Color(0xFFE5E5E5),
+                       ),
+                       validator: _validarSenha,
+                     ),
+                   ),
+                   const SizedBox(height: 40),
+                   Padding(
+                     padding: const EdgeInsets.symmetric(horizontal: 30),
+                     child: SizedBox(
+                       width: double.infinity,
+                       height: 55,
+                       child: ElevatedButton(
+                         style: ElevatedButton.styleFrom(
+                           backgroundColor: const Color(0xFFCC2B25),
+                           shape: RoundedRectangleBorder(
+                             borderRadius: BorderRadius.circular(10),
+                           ),
+                         ),
+                         onPressed: _controller.isLoading ? null : _fazerLogin,
+                         child: _controller.isLoading
+                             ? const CircularProgressIndicator(color: Colors.white)
+                             : const Text(
+                                 'Login',
+                                 style: TextStyle(
+                                   fontSize: 20,
+                                   fontWeight: FontWeight.bold,
+                                   color: Colors.white,
+                                 ),
+                               ),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 15),
+                   Row(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       const Text(
+                         'Não tem conta? ',
+                         style: TextStyle(color: Color(0xFF00BFA5)),
+                       ),
+                       GestureDetector(
+                         onTap: () {
+                           Navigator.push(
+                             context,
+                             MaterialPageRoute(
+                               builder: (context) => const TelaDeCadastro(),
+                             ),
+                           );
+                         },
+                         child: const Text(
+                           'Cadastro',
+                           style: TextStyle(
+                             color: Color(0xFF00BFA5),
+                             fontWeight: FontWeight.bold,
+                           ),
+                         ),
+                       ),
+                     ],
+                   ),
+                   const SizedBox(height: 181),
+                 ],
+               ),
               ),
-              child: Column(
-                children: [
-                  const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFCC2B25),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 40),
-
-            // CAMPO DE EMAIL
-            // O Padding dá margens nas laterais para o campo não encostar na tela
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Email', // O texto que fica de hint
-                  filled: true,
-                  fillColor: const Color(0xFFFFFFFF), // Fundo branco
-                  // Tira a linha de baixo padrão do Android e arredonda as bordas
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFC82B21), //borda colorida
-                      width: 2,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFC82B21),
-                      width: 2,
-                    )
-                  )
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 20),
-
-            // CAMPO DE SENHA
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: TextField(
-                obscureText: true, // Esconde o texto digitado (***)
-                decoration: InputDecoration(
-                  hintText: 'Senha',
-                  filled: true,
-                  fillColor: const Color(0xFFE5E5E5),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFC82B21), //borda colorida
-                      width: 2,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFC82B21),
-                      width: 2,
-                    )
-                  )
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 40),
-
-            // BOTÃO DE LOGIN
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              // SizedBox aqui é usado para forçar o botão a ter uma largura e altura específicas
-              child: SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCC2B25), // Botão vermelho
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10), // Bordas arredondadas
-                    ),
-                  ),
-                  onPressed: () {
-                    // Aqui entrará a lógica de login no futuro
-                  },
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 15),
-
-            // TEXTO DE CADASTRO NO RODAPÉ
-            // Usamos uma Row (Linha) para colocar um texto do lado do outro
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center, // Centraliza os itens na linha
-              children: [
-                const Text(
-                  'Não tem conta? ',
-                  style: TextStyle(color: Color(0xFF00BFA5)),
-                ),
-                GestureDetector( // Faz o texto ser clicável
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const TelaDeCadastro()
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Cadastro',
-                    style: TextStyle(
-                      color: Color(0xFF00BFA5),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 181), // preenchimento da tela branca para que o fundo vermelho não apareça
-               ],
-              ), 
-            ),
-
-          ], // 
+            ],
+          ),
         ),
-      ), 
-    ); 
+      ),
+    );
   }
 }
