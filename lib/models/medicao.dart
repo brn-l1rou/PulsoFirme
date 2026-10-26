@@ -16,6 +16,28 @@ StatusGlicemia classificarGlicemia({
   return StatusGlicemia.normal;
 }
 
+// RF12: momento da medição em relação às refeições.
+const Map<String, String> contextosMedicao = {
+  'jejum': 'Jejum',
+  'pre_prandial': 'Antes da refeição',
+  'pos_prandial': 'Após a refeição',
+  'antes_dormir': 'Antes de dormir',
+};
+
+// RF13: sintomas que podem ser marcados no momento da medição.
+const List<String> sintomasDisponiveis = [
+  'Tontura',
+  'Suor frio',
+  'Cansaço',
+  'Tremores',
+  'Fome excessiva',
+  'Sede excessiva',
+  'Visão turva',
+  'Dor de cabeça',
+  'Confusão',
+  'Palpitação',
+];
+
 class Medicao {
   final String id;
   final String pacienteId;
@@ -24,6 +46,8 @@ class Medicao {
   final StatusGlicemia status;
   final String? observacao;
   final String registradoPor;
+  final String? contexto;
+  final List<String> sintomas;
 
   const Medicao({
     required this.id,
@@ -33,9 +57,14 @@ class Medicao {
     required this.status,
     required this.registradoPor,
     this.observacao,
+    this.contexto,
+    this.sintomas = const [],
   });
 
   bool get foraDoLimite => status != StatusGlicemia.normal;
+
+  String? get contextoFormatado =>
+      contexto == null ? null : contextosMedicao[contexto];
 
   factory Medicao.fromDoc(
     String pacienteId,
@@ -54,6 +83,8 @@ class Medicao {
       ),
       observacao: data['observacao'] as String?,
       registradoPor: data['registradoPor'] as String? ?? '',
+      contexto: data['contexto'] as String?,
+      sintomas: List<String>.from(data['sintomas'] as List? ?? []),
     );
   }
 }

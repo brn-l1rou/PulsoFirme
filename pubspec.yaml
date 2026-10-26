@@ -47,6 +47,10 @@ dependencies:
   # Dependência do pacote pdf. A versão 4.11.0 não compila com o archive
   # aceito pelo pdf 3.12 (o único compatível com o Dart 3.11).
   image: ">=4.1.0 <4.11.0"
+  cloud_functions: ^5.6.2
+  shared_preferences: ^2.5.6
+  flutter_secure_storage: ^11.2.0
+  crypto: ^3.0.8
 
 dev_dependencies:
   flutter_test:

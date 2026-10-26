@@ -45,7 +45,7 @@ class _TelaLoginState extends State<TelaLogin> {
       hintText: hintText,
       suffixIcon: suffixIcon,
       hintStyle: const TextStyle(
-        color: Color(0xFF7A7A7A),
+        color: Color(0xFF666666),
         fontSize: 18,
       ),
       filled: true,
@@ -220,7 +220,7 @@ class _TelaLoginState extends State<TelaLogin> {
                            tooltip: _senhaVisivel ? 'Ocultar senha' : 'Mostrar senha',
                            icon: Icon(
                              _senhaVisivel ? Icons.visibility_off : Icons.visibility,
-                             color: const Color(0xFF7A7A7A),
+                             color: const Color(0xFF666666),
                            ),
                            onPressed: () {
                              setState(() {
@@ -265,7 +265,7 @@ class _TelaLoginState extends State<TelaLogin> {
                      children: [
                        const Text(
                          'Não tem conta? ',
-                         style: TextStyle(color: Color(0xFF00BFA5)),
+                         style: TextStyle(color: Color(0xFF00796B)),
                        ),
                        GestureDetector(
                          onTap: () {
@@ -279,7 +279,7 @@ class _TelaLoginState extends State<TelaLogin> {
                          child: const Text(
                            'Cadastro',
                            style: TextStyle(
-                             color: Color(0xFF00BFA5),
+                             color: Color(0xFF00796B),
                              fontWeight: FontWeight.bold,
                            ),
                          ),

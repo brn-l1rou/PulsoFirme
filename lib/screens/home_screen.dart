@@ -2,9 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import '../controllers/preferencias_controller.dart';
 import '../controllers/sessao_controller.dart';
 import '../services/notificacao_service.dart';
 import '../theme/app_colors.dart';
+import 'modo_simplificado_screen.dart';
 import 'perfil_screen.dart';
 import 'registros_screen.dart';
 import 'relatorio_screen.dart';
@@ -76,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _sessao,
+      listenable: Listenable.merge([_sessao, PreferenciasController.instancia]),
       builder: (context, _) {
         if (_sessao.isLoading) {
           return const Scaffold(
@@ -100,6 +102,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           );
+        }
+
+        // RNF04: modo simplificado escolhido nas configurações.
+        if (PreferenciasController.instancia.modoSimplificado) {
+          return ModoSimplificadoScreen(sessao: _sessao);
         }
 
         return Scaffold(

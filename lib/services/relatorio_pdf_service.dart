@@ -216,14 +216,22 @@ class RelatorioPdfService {
         };
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Data', 'Hora', 'Glicemia (mg/dL)', 'Situação', 'Observação'],
+      headers: [
+        'Data',
+        'Hora',
+        'Glicemia (mg/dL)',
+        'Situação',
+        'Momento',
+        'Sintomas / observação',
+      ],
       data: medicoes
           .map((m) => [
                 formatarData(m.dataMedicao),
                 formatarHora(m.dataMedicao),
                 '${m.valorMgdl}',
                 situacao(m.status),
-                m.observacao ?? '',
+                m.contextoFormatado ?? '',
+                [...m.sintomas, ?m.observacao].join('; '),
               ])
           .toList(),
       headerStyle: pw.TextStyle(
@@ -239,13 +247,15 @@ class RelatorioPdfService {
         2: pw.Alignment.center,
         3: pw.Alignment.center,
         4: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerLeft,
       },
       columnWidths: {
         0: const pw.FlexColumnWidth(2),
         1: const pw.FlexColumnWidth(1.2),
-        2: const pw.FlexColumnWidth(2),
-        3: const pw.FlexColumnWidth(1.5),
-        4: const pw.FlexColumnWidth(4),
+        2: const pw.FlexColumnWidth(1.6),
+        3: const pw.FlexColumnWidth(1.4),
+        4: const pw.FlexColumnWidth(2),
+        5: const pw.FlexColumnWidth(3.5),
       },
       oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
       cellDecoration: (index, data, rowNum) {

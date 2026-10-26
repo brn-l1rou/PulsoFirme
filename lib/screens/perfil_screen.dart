@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -5,12 +6,15 @@ import '../controllers/sessao_controller.dart';
 import '../models/convite.dart';
 import '../models/usuario.dart';
 import '../services/convite_service.dart';
+import '../services/foto_service.dart';
 import '../services/user_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/cabecalho_curvo.dart';
 import '../widgets/campos.dart';
 import '../widgets/dialogos.dart';
 import 'agendamentos_screen.dart';
+import 'configuracoes_screen.dart';
+import 'medicamentos_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   final SessaoController sessao;
@@ -25,6 +29,8 @@ class PerfilScreen extends StatefulWidget {
 class _PerfilScreenState extends State<PerfilScreen> {
   final UserService _userService = UserService();
   final ConviteService _conviteService = ConviteService();
+  final FotoService _fotoService = FotoService();
+  bool _salvandoFoto = false;
 
   bool _vinculosAbertos = false;
   String? _chaveCuidadores;
@@ -163,13 +169,94 @@ class _PerfilScreenState extends State<PerfilScreen> {
     if (email == null) {
       return;
     }
-    await _executar(
-      () => _conviteService.convidarCuidador(
+    try {
+      await _conviteService.convidarCuidador(
         paciente: _usuario,
         emailCuidador: email,
+      );
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível criar o convite.', erro: true);
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    // RF07: além de aparecer no app do cuidador, o convite pode ser
+    // avisado por e-mail ou WhatsApp pelo menu de compartilhar.
+    final avisar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Convite criado!'),
+        content: Text(
+          'Quando $email entrar no app, verá o convite na aba Perfil. '
+          'Quer avisar a pessoa por WhatsApp ou e-mail?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Agora não'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Avisar'),
+          ),
+        ],
       ),
-      'Convite enviado! O cuidador verá o convite no perfil dele.',
     );
+    if (avisar == true) {
+      await _conviteService.compartilharConvite(paciente: _usuario);
+    }
+  }
+
+  // RF07: código de convite para enviar por qualquer app.
+  Future<void> _gerarCodigo() async {
+    try {
+      final codigo = await _conviteService.gerarCodigo(_usuario);
+      await _conviteService.compartilharConvite(
+        paciente: _usuario,
+        codigo: codigo,
+      );
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível gerar o código.', erro: true);
+      }
+    }
+  }
+
+  Future<void> _usarCodigo() async {
+    final codigo = await _pedirTexto(
+      titulo: 'Código de convite',
+      valorInicial: '',
+      validator: (value) => RegExp(r'^[A-Za-z0-9]{6}$').hasMatch((value ?? '').trim())
+          ? null
+          : 'O código tem 6 letras e números.',
+    );
+    if (codigo == null) {
+      return;
+    }
+
+    try {
+      final nome = await _conviteService.aceitarCodigo(codigo);
+      await widget.sessao.recarregarPacientes();
+      if (mounted) {
+        mostrarMensagem(context, 'Agora você acompanha $nome!');
+      }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          e.message ?? 'Não foi possível usar o código.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível usar o código.', erro: true);
+      }
+    }
   }
 
   Future<void> _responderConvite(Convite convite, {required bool aceitar}) {
@@ -227,6 +314,93 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }, 'Vínculo removido.');
   }
 
+  Widget _fotoEditavel(String uid) {
+    return Semantics(
+      button: true,
+      label: 'Alterar foto de perfil',
+      child: GestureDetector(
+        onTap: _salvandoFoto ? null : _alterarFoto,
+        child: Stack(
+          children: [
+            AvatarUsuario(uid: uid, tamanho: 130),
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primaria,
+                child: _salvandoFoto
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.photo_camera, color: Colors.white, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _alterarFoto() async {
+    final opcao = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Escolher da galeria'),
+              onTap: () => Navigator.pop(context, 'galeria'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Remover foto'),
+              onTap: () => Navigator.pop(context, 'remover'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (opcao == null) {
+      return;
+    }
+
+    setState(() => _salvandoFoto = true);
+    try {
+      if (opcao == 'remover') {
+        await _fotoService.remover(_usuario.uid);
+      } else {
+        final salvou = await _fotoService.escolherESalvar(
+          _usuario.uid,
+          usarCamera: opcao == 'camera',
+        );
+        if (salvou && mounted) {
+          mostrarMensagem(context, 'Foto atualizada!');
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível salvar a foto.', erro: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _salvandoFoto = false);
+      }
+    }
+  }
+
   Future<void> _confirmarSaida() async {
     final sair = await showDialog<bool>(
       context: context,
@@ -261,7 +435,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
         children: [
           CabecalhoCurvo(
             alturaTopo: 160,
-            topo: const AvatarUsuario(tamanho: 130),
+            topo: _fotoEditavel(usuario.uid),
+            acaoEsquerda: IconButton(
+              tooltip: 'Configurações',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ConfiguracoesScreen(sessao: widget.sessao),
+                ),
+              ),
+              icon: const Icon(Icons.settings, color: Colors.white),
+            ),
             acaoDireita: IconButton(
               tooltip: 'Sair',
               onPressed: _confirmarSaida,
@@ -292,52 +476,87 @@ class _PerfilScreenState extends State<PerfilScreen> {
               valor: '${usuario.limiteMinimo} a ${usuario.limiteMaximo} mg/dL',
               onEditar: _editarLimites,
             ),
-          if (widget.sessao.pacienteSelecionado != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(30, 4, 30, 0),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primaria),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AgendamentosScreen(sessao: widget.sessao),
-                  ),
-                ),
-                icon: const Icon(Icons.alarm, color: AppColors.primaria),
-                label: Text(
-                  usuario.isPaciente
-                      ? 'Medições agendadas'
-                      : 'Medições agendadas de ${widget.sessao.pacienteSelecionado!.nome}',
-                  style: const TextStyle(color: AppColors.primaria),
-                ),
-              ),
+          if (widget.sessao.pacienteSelecionado != null) ...[
+            _botaoDoPaciente(
+              icone: Icons.alarm,
+              rotulo: 'Medições agendadas',
+              tela: (sessao) => AgendamentosScreen(sessao: sessao),
             ),
+            _botaoDoPaciente(
+              icone: Icons.medication,
+              rotulo: 'Medicamentos',
+              tela: (sessao) => MedicamentosScreen(sessao: sessao),
+            ),
+          ],
           const SizedBox(height: 20),
           _botaoVinculos(),
           if (_vinculosAbertos) _listaVinculos(),
           const SizedBox(height: 12),
           if (usuario.isPaciente)
-            Center(
-              child: TextButton.icon(
-                onPressed: _convidarCuidador,
-                icon: const Icon(Icons.person_add_alt, color: AppColors.primaria),
-                label: const Text(
-                  'Convidar cuidador',
-                  style: TextStyle(
-                    color: AppColors.primaria,
-                    fontWeight: FontWeight.bold,
-                  ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                _botaoTexto(
+                  Icons.person_add_alt,
+                  'Convidar por e-mail',
+                  _convidarCuidador,
                 ),
-              ),
+                _botaoTexto(Icons.share, 'Enviar código de convite', _gerarCodigo),
+              ],
             )
-          else
+          else ...[
+            Center(
+              child: _botaoTexto(
+                Icons.vpn_key_outlined,
+                'Tenho um código de convite',
+                _usarCodigo,
+              ),
+            ),
             _convitesRecebidos(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _botaoTexto(IconData icone, String rotulo, VoidCallback onPressed) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icone, color: AppColors.primaria),
+      label: Text(
+        rotulo,
+        style: const TextStyle(
+          color: AppColors.primaria,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  // Atalhos que valem para o paciente acompanhado (o próprio usuário, ou o
+  // paciente selecionado no caso do cuidador).
+  Widget _botaoDoPaciente({
+    required IconData icone,
+    required String rotulo,
+    required Widget Function(SessaoController sessao) tela,
+  }) {
+    final paciente = widget.sessao.pacienteSelecionado!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(30, 4, 30, 0),
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.primaria),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => tela(widget.sessao)),
+        ),
+        icon: Icon(icone, color: AppColors.primaria),
+        label: Text(
+          _usuario.isPaciente ? rotulo : '$rotulo de ${paciente.nome}',
+          style: const TextStyle(color: AppColors.primaria),
+        ),
       ),
     );
   }
@@ -399,7 +618,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
           children: vinculados
               .map((v) => ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 50),
-                    leading: const Icon(Icons.person, color: AppColors.primaria),
+                    leading: AvatarUsuario(uid: v.uid, tamanho: 40, borda: 0),
                     title: Text(v.nome),
                     subtitle: Text(v.telefone),
                     trailing: IconButton(

@@ -8,6 +8,7 @@ import '../models/usuario.dart';
 import '../services/medicao_service.dart';
 import '../services/relatorio_pdf_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/analise_padroes_card.dart';
 import '../widgets/cabecalho_curvo.dart';
 import '../widgets/campos.dart';
 import '../widgets/glicemia_chart.dart';
@@ -176,6 +177,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                 return Column(
                   children: [
                     _Resumo(medicoes: medicoes),
+                    AnalisePadroesCard(pacienteId: paciente.uid),
                     const SizedBox(height: 12),
                     GlicemiaChart(
                       medicoes: medicoes,

@@ -12,6 +12,7 @@ import '../utils/formatadores.dart';
 import '../widgets/cabecalho_curvo.dart';
 import '../widgets/campos.dart';
 import '../widgets/logo_app.dart';
+import '../widgets/seletor_contexto.dart';
 
 class EditarRegistroScreen extends StatefulWidget {
   final SessaoController sessao;
@@ -33,11 +34,15 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
   late final TextEditingController _glicemiaController;
   late final RegistroController _controller;
   late DateTime _dataMedicao;
+  String? _contexto;
+  late Set<String> _sintomas;
 
   @override
   void initState() {
     super.initState();
     _dataMedicao = widget.medicao.dataMedicao;
+    _contexto = widget.medicao.contexto;
+    _sintomas = widget.medicao.sintomas.toSet();
     _horarioController.text = formatarDataHora(_dataMedicao);
     _glicemiaController =
         TextEditingController(text: widget.medicao.valorMgdl.toString());
@@ -102,6 +107,8 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
       autor: widget.sessao.usuario!,
       valorMgdl: int.parse(_glicemiaController.text.trim()),
       dataMedicao: _dataMedicao,
+      contexto: _contexto,
+      sintomas: _sintomas.toList(),
     );
 
     if (!mounted) {
@@ -247,6 +254,13 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
                         ),
                         validator: RegistroController.validarGlicemia,
                       ),
+                    ),
+                    const SizedBox(height: 20),
+                    SeletorContextoSintomas(
+                      contexto: _contexto,
+                      sintomas: _sintomas,
+                      onContexto: (valor) => setState(() => _contexto = valor),
+                      onSintomas: (valor) => setState(() => _sintomas = valor),
                     ),
                     if (widget.medicao.observacao != null) ...[
                       const SizedBox(height: 20),

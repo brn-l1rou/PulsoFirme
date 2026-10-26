@@ -21,13 +21,22 @@ class MedicaoService {
         .collection('auditoria');
   }
 
-  Stream<List<Medicao>> watchMedicoes(String pacienteId, {DateTime? desde}) {
+  // [ate] é exclusivo: para filtrar até um dia inteiro, passe o início
+  // do dia seguinte.
+  Stream<List<Medicao>> watchMedicoes(
+    String pacienteId, {
+    DateTime? desde,
+    DateTime? ate,
+  }) {
     Query<Map<String, dynamic>> query = _medicoes(pacienteId);
     if (desde != null) {
       query = query.where(
         'dataMedicao',
         isGreaterThanOrEqualTo: Timestamp.fromDate(desde),
       );
+    }
+    if (ate != null) {
+      query = query.where('dataMedicao', isLessThan: Timestamp.fromDate(ate));
     }
 
     return query
@@ -82,6 +91,8 @@ class MedicaoService {
     required StatusGlicemia status,
     required Usuario autor,
     String? observacao,
+    String? contexto,
+    List<String> sintomas = const [],
   }) {
     final batch = _firestore.batch();
     final medicao = _medicoes(pacienteId).doc();
@@ -91,6 +102,8 @@ class MedicaoService {
       'dataMedicao': Timestamp.now(),
       'status': status.name,
       'observacao': observacao,
+      'contexto': contexto,
+      'sintomas': sintomas,
       'registradoPor': autor.uid,
       'atualizadoPor': autor.uid,
       'atualizadoEm': FieldValue.serverTimestamp(),
@@ -113,6 +126,8 @@ class MedicaoService {
     required DateTime dataMedicao,
     required StatusGlicemia status,
     required Usuario autor,
+    String? contexto,
+    List<String> sintomas = const [],
   }) {
     final batch = _firestore.batch();
 
@@ -120,6 +135,8 @@ class MedicaoService {
       'valorMgdl': valorMgdl,
       'dataMedicao': Timestamp.fromDate(dataMedicao),
       'status': status.name,
+      'contexto': contexto,
+      'sintomas': sintomas,
       'atualizadoPor': autor.uid,
       'atualizadoEm': FieldValue.serverTimestamp(),
     });

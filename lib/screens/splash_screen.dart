@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/pin_service.dart';
 import '../theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -25,8 +26,18 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    final logado = FirebaseAuth.instance.currentUser != null;
-    Navigator.pushReplacementNamed(context, logado ? '/home' : '/login');
+    final usuario = FirebaseAuth.instance.currentUser;
+    if (usuario == null) {
+      Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+
+    // PIN de acesso, se o usuário ativou nas configurações.
+    final temPin = await PinService().temPin(usuario.uid);
+    if (!mounted) {
+      return;
+    }
+    Navigator.pushReplacementNamed(context, temPin ? '/pin' : '/home');
   }
 
   @override

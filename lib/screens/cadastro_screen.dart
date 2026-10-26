@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/cadastro_controller.dart';
+import '../utils/validadores.dart';
 
 class TelaDeCadastro extends StatefulWidget {
   const TelaDeCadastro({super.key});
@@ -53,7 +54,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(
-        color: Colors.white70,
+        color: Color(0xFFFFF0EF),
         fontSize: 18,
       ),
       filled: true,
@@ -162,26 +163,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
     return null;
   }
 
-  String? _validarSenha(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Informe sua senha.';
-    }
-
-    // RNF02: mínimo de 8 caracteres, com maiúscula, minúscula, número e
-    // caractere especial.
-    final faltando = <String>[
-      if (value.length < 8) '8 caracteres',
-      if (!RegExp(r'[A-Z]').hasMatch(value)) '1 letra maiúscula',
-      if (!RegExp(r'[a-z]').hasMatch(value)) '1 letra minúscula',
-      if (!RegExp(r'[0-9]').hasMatch(value)) '1 número',
-      if (!RegExp(r'[^A-Za-z0-9]').hasMatch(value)) '1 caractere especial',
-    ];
-    if (faltando.isNotEmpty) {
-      return 'A senha precisa ter: ${faltando.join(', ')}.';
-    }
-
-    return null;
-  }
+  String? _validarSenha(String? value) => validarSenhaForte(value);
 
   Widget _botaoVisibilidade(bool visivel, VoidCallback onPressed) {
     return IconButton(
@@ -487,7 +469,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
                               helperText:
                                   'Mín. 8 caracteres, com maiúscula, minúscula, número e símbolo.',
                               helperMaxLines: 2,
-                              helperStyle: const TextStyle(color: Colors.white70),
+                              helperStyle: const TextStyle(color: Color(0xFFFFF0EF)),
                             ),
                             validator: _validarSenha,
                           ),

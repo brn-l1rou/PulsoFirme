@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/usuario.dart';
@@ -60,6 +61,10 @@ class SessaoController extends ChangeNotifier {
     _usuario = usuario;
     _errorMessage = usuario == null ? 'Usuário não encontrado.' : null;
 
+    if (usuario != null) {
+      _sincronizarEmail(usuario);
+    }
+
     if (usuario != null && usuario.isCuidador) {
       await recarregarPacientes();
     }
@@ -87,6 +92,20 @@ class SessaoController extends ChangeNotifier {
           _pacientes.isNotEmpty ? _pacientes.first.uid : null;
     }
     _notificar();
+  }
+
+  // RF21: depois que o novo e-mail é confirmado pelo link, o login passa a
+  // usá-lo; aqui o perfil no Firestore é atualizado para ficar igual.
+  Future<void> _sincronizarEmail(Usuario usuario) async {
+    final emailLogin = FirebaseAuth.instance.currentUser?.email?.toLowerCase();
+    if (emailLogin == null || emailLogin == usuario.email.toLowerCase()) {
+      return;
+    }
+    try {
+      await _userService.atualizarEmail(usuario.uid, emailLogin);
+    } catch (e) {
+      debugPrint('Não foi possível atualizar o e-mail do perfil: $e');
+    }
   }
 
   // As cargas são assíncronas e podem terminar depois que a tela foi

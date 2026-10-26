@@ -67,6 +67,10 @@ class UserService {
     });
   }
 
+  Future<void> atualizarEmail(String uid, String email) {
+    return _usuarios.doc(uid).update({'email': email});
+  }
+
   Future<void> atualizarLimites(
     String uid, {
     required int limiteMinimo,

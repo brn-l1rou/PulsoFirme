@@ -10,7 +10,7 @@ import '../theme/app_colors.dart';
 import '../utils/formatadores.dart';
 import '../widgets/campos.dart';
 
-enum _FiltroTipo { todas, acima, abaixo, perdida, agendada, sos }
+enum _FiltroTipo { todas, acima, abaixo, perdida, agendada, medicamento, sos }
 
 enum _FiltroPeriodo { hoje, semana, mes }
 
@@ -71,6 +71,13 @@ class _ItemAlerta {
           titulo: 'Medição agendada - ${alerta.hora ?? ''}',
           subtitulo: quando,
           icone: Icons.alarm,
+        ),
+      'medicamento' => _ItemAlerta(
+          tipo: _FiltroTipo.medicamento,
+          data: alerta.criadoEm,
+          titulo: 'Remédio - ${alerta.hora ?? ''}',
+          subtitulo: '${alerta.descricao ?? ''} • $quando',
+          icone: Icons.medication,
         ),
       _ => null,
     };
@@ -184,6 +191,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
               _FiltroTipo.abaixo: 'ABAIXO',
               _FiltroTipo.perdida: 'PERDIDAS',
               _FiltroTipo.agendada: 'AGENDADAS',
+              _FiltroTipo.medicamento: 'REMÉDIOS',
               _FiltroTipo.sos: 'SOS',
             },
             onChanged: (valor) => setState(() => _tipo = valor),

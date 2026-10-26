@@ -14,7 +14,7 @@ InputDecoration decoracaoCampoBranco({
 
   return InputDecoration(
     hintText: hintText,
-    hintStyle: const TextStyle(color: Color(0xFF7A7A7A), fontSize: 16),
+    hintStyle: const TextStyle(color: Color(0xFF666666), fontSize: 16),
     filled: true,
     fillColor: Colors.white,
     suffixIcon: suffixIcon,

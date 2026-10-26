@@ -1,6 +1,8 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
@@ -301,19 +303,197 @@ async function processarAgendamento(doc, hoje, intervaloMinutos) {
 
 const INTERVALO_MINUTOS = 5;
 
+// RF05: lembrete em cada horário dos remédios ativos.
+async function processarMedicamento(doc, hoje, intervaloMinutos) {
+  const medicamento = doc.data();
+  if (!medicamento.ativo) {
+    return;
+  }
+
+  const horarios = (medicamento.horarios || []).filter((horario) => {
+    const [hora, minuto] = horario.split(":").map(Number);
+    const passados = hoje.minutosDoDia - (hora * 60 + minuto);
+    return passados >= 0 && passados < intervaloMinutos;
+  });
+  if (horarios.length === 0) {
+    return;
+  }
+
+  const pacienteId = doc.ref.parent.parent.id;
+  const paciente = await buscarPaciente(pacienteId);
+  if (!paciente) {
+    return;
+  }
+
+  const descricao = `${medicamento.nome} ${medicamento.dosagem}`;
+  for (const horario of horarios) {
+    const alertaId = `${doc.id}_${hoje.dataIso}_${horario.replace(":", "")}_medicamento`;
+    const criado = await criarAlertaUnico(pacienteId, alertaId, {
+      tipo: "medicamento",
+      hora: horario,
+      descricao,
+      medicamentoId: doc.id,
+    });
+    if (criado) {
+      await enviarPush(destinatarios(pacienteId, paciente, { incluirPaciente: true }), {
+        titulo: `Hora do remédio - ${horario}`,
+        corpo: `${paciente.nome}: ${descricao}. Confirme a dose no app.`,
+        dados: { tipo: "medicamento", pacienteId },
+      });
+    }
+  }
+}
+
 exports.verificarAgendamentos = onSchedule(
   { schedule: `every ${INTERVALO_MINUTOS} minutes`, timeZone: FUSO },
   async () => {
     const hoje = agoraNoFuso(new Date());
     // Sem filtro na consulta para não exigir índice de collection group;
     // os inativos são ignorados em processarAgendamento.
-    const agendamentos = await db.collectionGroup("agendamentos").get();
+    const [agendamentos, medicamentos] = await Promise.all([
+      db.collectionGroup("agendamentos").get(),
+      db.collectionGroup("medicamentos").get(),
+    ]);
 
-    const resultados = await Promise.allSettled(
-      agendamentos.docs.map((doc) => processarAgendamento(doc, hoje, INTERVALO_MINUTOS)),
-    );
+    const resultados = await Promise.allSettled([
+      ...agendamentos.docs.map((doc) => processarAgendamento(doc, hoje, INTERVALO_MINUTOS)),
+      ...medicamentos.docs.map((doc) => processarMedicamento(doc, hoje, INTERVALO_MINUTOS)),
+    ]);
     resultados
       .filter((resultado) => resultado.status === "rejected")
       .forEach((resultado) => logger.error("Erro ao processar agendamento", resultado.reason));
+  },
+);
+
+// ---------------------------------------------------------------------------
+// RF07: aceitar convite por código
+// ---------------------------------------------------------------------------
+
+// O cuidador não tem permissão para ler convites nem o documento do
+// paciente antes do vínculo, então a validação é feita aqui no servidor.
+exports.aceitarConvitePorCodigo = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Entre na sua conta novamente.");
+  }
+
+  const codigo = String(request.data?.codigo || "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(codigo)) {
+    throw new HttpsError("invalid-argument", "Código inválido.");
+  }
+
+  return db.runTransaction(async (transacao) => {
+    const conviteRef = db.collection("convitesCodigo").doc(codigo);
+    const cuidadorRef = db.collection("usuarios").doc(uid);
+    const [convite, cuidador] = await Promise.all([
+      transacao.get(conviteRef),
+      transacao.get(cuidadorRef),
+    ]);
+
+    if (!convite.exists) {
+      throw new HttpsError("not-found", "Código não encontrado. Confira as letras e números.");
+    }
+    const dados = convite.data();
+    if (dados.usado) {
+      throw new HttpsError("failed-precondition", "Este código já foi usado. Peça um novo ao paciente.");
+    }
+    if (dados.expiraEm.toMillis() < Date.now()) {
+      throw new HttpsError("failed-precondition", "Este código expirou. Peça um novo ao paciente.");
+    }
+    if (!cuidador.exists || cuidador.data().tipoUsuario !== "cuidador") {
+      throw new HttpsError("permission-denied", "Só contas de cuidador podem usar códigos de convite.");
+    }
+
+    transacao.update(db.collection("usuarios").doc(dados.pacienteId), {
+      cuidadoresAutorizados: FieldValue.arrayUnion(uid),
+    });
+    transacao.update(cuidadorRef, {
+      pacientesVinculados: FieldValue.arrayUnion(dados.pacienteId),
+    });
+    transacao.update(conviteRef, {
+      usado: true,
+      usadoPor: uid,
+      usadoEm: FieldValue.serverTimestamp(),
+    });
+
+    return { pacienteNome: dados.pacienteNome };
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RN19 / RN20 / RN21: análise de padrões a cada nova medição
+// ---------------------------------------------------------------------------
+
+const { analisarEstatisticas, gerarTextoComIa } = require("./analise");
+
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const DIAS_ANALISADOS = 30;
+
+exports.analisarPadroes = onDocumentCreated(
+  {
+    document: "usuarios/{pacienteId}/medicoes/{medicaoId}",
+    secrets: [GEMINI_API_KEY],
+    timeoutSeconds: 60,
+  },
+  async (event) => {
+    const { pacienteId } = event.params;
+    const paciente = await buscarPaciente(pacienteId);
+    if (!paciente) {
+      return;
+    }
+
+    const desde = new Date(Date.now() - DIAS_ANALISADOS * 86400000);
+    const snapshot = await db
+      .collection("usuarios")
+      .doc(pacienteId)
+      .collection("medicoes")
+      .where("dataMedicao", ">=", Timestamp.fromDate(desde))
+      .get();
+    const medicoes = snapshot.docs.map((doc) => {
+      const dados = doc.data();
+      return {
+        valor: dados.valorMgdl,
+        data: dados.dataMedicao.toDate(),
+        hora: agoraNoFuso(dados.dataMedicao.toDate()).minutosDoDia / 60,
+        contexto: dados.contexto || null,
+        sintomas: dados.sintomas || [],
+      };
+    });
+
+    // Com poucas medições não há padrão confiável.
+    if (medicoes.length < 3) {
+      return;
+    }
+
+    const limites = {
+      minimo: paciente.limiteMinimo ?? 70,
+      maximo: paciente.limiteMaximo ?? 180,
+    };
+    const estatisticas = analisarEstatisticas(medicoes, limites, DIAS_ANALISADOS);
+
+    let texto = { resumo: estatisticas.resumo, pontos: estatisticas.padroes, origem: "estatistica" };
+    const chave = GEMINI_API_KEY.value();
+    if (chave) {
+      try {
+        texto = { ...(await gerarTextoComIa(chave, estatisticas, limites)), origem: "ia" };
+      } catch (erro) {
+        // Sem a IA, fica a análise estatística (RN19 continua atendido).
+        logger.warn("Falha ao gerar análise com IA; usando a estatística", erro);
+      }
+    }
+
+    await db
+      .collection("usuarios")
+      .doc(pacienteId)
+      .collection("insights")
+      .doc("atual")
+      .set({
+        resumo: texto.resumo,
+        pontos: texto.pontos,
+        origem: texto.origem,
+        totalMedicoes: medicoes.length,
+        periodoDias: DIAS_ANALISADOS,
+        geradaEm: FieldValue.serverTimestamp(),
+      });
   },
 );

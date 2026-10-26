@@ -50,6 +50,21 @@ class MedicaoCard extends StatelessWidget {
                       formatarDataHora(medicao.dataMedicao),
                       style: const TextStyle(fontSize: 13),
                     ),
+                    if (medicao.contextoFormatado != null ||
+                        medicao.sintomas.isNotEmpty)
+                      Text(
+                        [
+                          ?medicao.contextoFormatado,
+                          if (medicao.sintomas.isNotEmpty)
+                            medicao.sintomas.join(', '),
+                        ].join(' • '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
                   ],
                 ),
               ),

@@ -1,15 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../controllers/sessao_controller.dart';
 import '../models/medicao.dart';
 import '../models/usuario.dart';
-import '../services/alerta_service.dart';
 import '../services/medicao_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/formatadores.dart';
 import '../widgets/cabecalho_curvo.dart';
-import '../widgets/campos.dart';
+import '../widgets/acao_sos.dart';
 import '../widgets/medicao_card.dart';
 import '../widgets/seletor_paciente.dart';
 import 'adicionar_registro_screen.dart';
@@ -31,90 +29,75 @@ class _RegistrosScreenState extends State<RegistrosScreen> {
   Stream<List<Medicao>>? _stream;
   bool _enviandoSos = false;
 
-  // RF06: envia um alerta de emergência com a localização do paciente
-  // para todos os cuidadores vinculados.
   Future<void> _enviarSos(Usuario paciente) async {
-    if (paciente.cuidadoresAutorizados.isEmpty) {
-      mostrarMensagem(
-        context,
-        'Você ainda não tem cuidadores vinculados para receber o SOS.',
-        erro: true,
-      );
-      return;
-    }
-
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.sos, color: AppColors.primaria, size: 48),
-        title: const Text('Enviar pedido de ajuda?'),
-        content: const Text(
-          'Seus cuidadores receberão um alerta de emergência com a sua '
-          'localização atual.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaria),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enviar SOS', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirmado != true) {
-      return;
-    }
-
     setState(() => _enviandoSos = true);
-    try {
-      final alertaService = AlertaService();
-      final posicao = await alertaService.obterLocalizacao();
-      await alertaService
-          .enviarSos(pacienteId: paciente.uid, posicao: posicao)
-          .timeout(const Duration(seconds: 10));
-      if (mounted) {
-        mostrarMensagem(
-          context,
-          posicao == null
-              ? 'SOS enviado (sem localização: verifique o GPS e a permissão).'
-              : 'SOS enviado com a sua localização!',
-        );
-      }
-    } on TimeoutException {
-      // O Firestore mantém o alerta na fila e envia quando a conexão voltar.
-      if (mounted) {
-        mostrarMensagem(
-          context,
-          'Sem conexão: o SOS será enviado quando a internet voltar. '
-          'Se for urgente, ligue 192.',
-          erro: true,
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        mostrarMensagem(
-          context,
-          'Não foi possível enviar o SOS. Se for urgente, ligue 192.',
-          erro: true,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _enviandoSos = false);
-      }
+    await enviarSosComConfirmacao(context, paciente);
+    if (mounted) {
+      setState(() => _enviandoSos = false);
     }
   }
 
+  // RF20: filtro do histórico por período (null = todos os registros).
+  DateTimeRange? _filtro;
+
   Stream<List<Medicao>> _medicoesDe(String pacienteId) {
-    if (_stream == null || _pacienteDoStream != pacienteId) {
-      _pacienteDoStream = pacienteId;
-      _stream = _medicaoService.watchMedicoes(pacienteId);
+    final chave = '$pacienteId-${_filtro?.start}-${_filtro?.end}';
+    if (_stream == null || _pacienteDoStream != chave) {
+      _pacienteDoStream = chave;
+      final filtro = _filtro;
+      _stream = _medicaoService.watchMedicoes(
+        pacienteId,
+        desde: filtro?.start,
+        // O fim do período inclui o dia inteiro.
+        ate: filtro?.end.add(const Duration(days: 1)),
+      );
     }
     return _stream!;
+  }
+
+  Future<void> _escolherPeriodo() async {
+    final hoje = DateTime.now();
+    final periodo = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(hoje.year, hoje.month, hoje.day),
+      initialDateRange: _filtro,
+      helpText: 'Filtrar registros por data',
+      saveText: 'Filtrar',
+    );
+    if (periodo != null) {
+      setState(() => _filtro = periodo);
+    }
+  }
+
+  Widget _barraFiltro() {
+    final filtro = _filtro;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Row(
+        children: [
+          ActionChip(
+            avatar: const Icon(
+              Icons.date_range,
+              size: 18,
+              color: AppColors.primaria,
+            ),
+            label: Text(
+              filtro == null
+                  ? 'Filtrar por data'
+                  : '${formatarData(filtro.start)} a ${formatarData(filtro.end)}',
+            ),
+            onPressed: _escolherPeriodo,
+          ),
+          if (filtro != null)
+            IconButton(
+              tooltip: 'Limpar filtro',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() => _filtro = null),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -143,7 +126,7 @@ class _RegistrosScreenState extends State<RegistrosScreen> {
         children: [
           CabecalhoCurvo(
             alturaTopo: 130,
-            topo: const AvatarUsuario(tamanho: 100),
+            topo: AvatarUsuario(uid: paciente?.uid, tamanho: 100),
             acaoEsquerda: usuario.isPaciente
                 ? Padding(
                     padding: const EdgeInsets.all(6),
@@ -193,6 +176,7 @@ class _RegistrosScreenState extends State<RegistrosScreen> {
                 ? TituloCabecalho(usuario.nome)
                 : Center(child: SeletorPaciente(sessao: sessao)),
           ),
+          if (paciente != null) _barraFiltro(),
           Expanded(
             child: paciente == null
                 ? const _SemPaciente()
@@ -214,9 +198,11 @@ class _RegistrosScreenState extends State<RegistrosScreen> {
 
                       final medicoes = snapshot.data!;
                       if (medicoes.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Text(
-                            'Nenhum registro ainda.\nToque no + para adicionar.',
+                            _filtro == null
+                                ? 'Nenhum registro ainda.\nToque no + para adicionar.'
+                                : 'Nenhum registro no período escolhido.',
                             textAlign: TextAlign.center,
                           ),
                         );

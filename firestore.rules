@@ -26,9 +26,13 @@ service cloud.firestore {
     }
 
     match /usuarios/{userId} {
+      // RF21: o e-mail só muda para o e-mail do login (já verificado
+      // pelo Firebase Auth); tipo e data de criação nunca mudam.
       function camposImutaveisPreservados() {
-        return !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['tipoUsuario', 'email', 'criadoEm']);
+        let alterados = request.resource.data.diff(resource.data).affectedKeys();
+        return !alterados.hasAny(['tipoUsuario', 'criadoEm'])
+          && (!alterados.hasAny(['email'])
+            || request.resource.data.email == emailAtual());
       }
 
       // RN05: o cuidador só entra na lista do paciente se houver um convite
@@ -84,7 +88,11 @@ service cloud.firestore {
           && d.valorMgdl > 0
           && d.valorMgdl <= 1000
           && d.dataMedicao is timestamp
-          && d.status in ['normal', 'acima', 'abaixo'];
+          && d.status in ['normal', 'acima', 'abaixo']
+          // RF12/RF13: momento da medição e sintomas são opcionais.
+          && (d.get('contexto', null) == null
+            || d.contexto in ['jejum', 'pre_prandial', 'pos_prandial', 'antes_dormir'])
+          && (d.get('sintomas', []) is list && d.get('sintomas', []).size() <= 10);
       }
 
       allow read: if vinculadoAoPaciente(pacienteId);
@@ -104,6 +112,27 @@ service cloud.firestore {
         && (request.auth.uid in cuidadoresDe(pacienteId)
           || (request.auth.uid == pacienteId
             && cuidadoresDe(pacienteId).size() == 0));
+    }
+
+    // Foto de perfil: visível para quem pode ver o perfil (o próprio
+    // usuário e quem está vinculado a ele); só o dono altera.
+    match /usuarios/{userId}/publico/foto {
+      function perfil() {
+        return usuarioDoc(userId).data;
+      }
+
+      allow read: if autenticado()
+        && (request.auth.uid == userId
+          || request.auth.uid in perfil().get('cuidadoresAutorizados', [])
+          || request.auth.uid in perfil().get('pacientesVinculados', []));
+
+      // ~200 KB em base64 (a foto do app tem cerca de 30 KB).
+      allow create, update: if autenticado()
+        && request.auth.uid == userId
+        && request.resource.data.imagem is string
+        && request.resource.data.imagem.size() <= 200000;
+
+      allow delete: if autenticado() && request.auth.uid == userId;
     }
 
     // Tokens FCM do aparelho: só o dono lê e escreve (as Cloud Functions
@@ -162,6 +191,53 @@ service cloud.firestore {
         && request.resource.data.criadoEm == request.time;
 
       allow update, delete: if false;
+    }
+
+    // RF05: remédios do paciente.
+    match /usuarios/{pacienteId}/medicamentos/{medicamentoId} {
+      function medicamentoValido() {
+        let d = request.resource.data;
+        return d.nome is string && d.nome.size() > 0 && d.nome.size() <= 80
+          && d.dosagem is string && d.dosagem.size() > 0 && d.dosagem.size() <= 40
+          && d.horarios is list && d.horarios.size() > 0 && d.horarios.size() <= 12
+          && d.ativo is bool;
+      }
+
+      allow read, delete: if vinculadoAoPaciente(pacienteId);
+      allow create, update: if vinculadoAoPaciente(pacienteId) && medicamentoValido();
+    }
+
+    // RF08: confirmação de dose, imutável e com quem confirmou.
+    match /usuarios/{pacienteId}/tomadas/{tomadaId} {
+      allow read: if vinculadoAoPaciente(pacienteId);
+
+      allow create: if vinculadoAoPaciente(pacienteId)
+        && request.resource.data.confirmadoPor == request.auth.uid
+        && request.resource.data.data == request.time
+        && exists(/databases/$(database)/documents/usuarios/$(pacienteId)/medicamentos/$(request.resource.data.medicamentoId));
+
+      allow update, delete: if false;
+    }
+
+    // RN19: análise de padrões, escrita só pela Cloud Function.
+    match /usuarios/{pacienteId}/insights/{insightId} {
+      allow read: if vinculadoAoPaciente(pacienteId);
+      allow write: if false;
+    }
+
+    // RF07: código de convite. Só o paciente cria e lê; o cuidador usa o
+    // código pela Cloud Function "aceitarConvitePorCodigo".
+    match /convitesCodigo/{codigo} {
+      allow create: if autenticado()
+        && codigo.matches('^[A-Z0-9]{6}$')
+        && request.resource.data.pacienteId == request.auth.uid
+        && request.resource.data.usado == false
+        && request.resource.data.expiraEm is timestamp
+        && request.resource.data.expiraEm < request.time + duration.value(8, 'd')
+        && usuarioDoc(request.auth.uid).data.tipoUsuario == 'paciente';
+
+      allow read, delete: if autenticado() && resource.data.pacienteId == request.auth.uid;
+      allow update: if false;
     }
 
     match /convites/{conviteId} {

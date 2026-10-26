@@ -11,6 +11,7 @@ import '../services/ocr_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/campos.dart';
 import '../widgets/logo_app.dart';
+import '../widgets/seletor_contexto.dart';
 
 class AdicionarRegistroScreen extends StatefulWidget {
   final SessaoController sessao;
@@ -30,6 +31,8 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
   late final RegistroController _controller;
   File? _imagem;
   bool _lendoImagem = false;
+  String? _contexto;
+  Set<String> _sintomas = {};
 
   @override
   void initState() {
@@ -82,39 +85,29 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
     }
 
     setState(() => _imagem = leitura!.imagem);
-    final valor = leitura.valor;
-    if (valor == null) {
-      mostrarMensagem(
-        context,
-        'Não identificamos o valor na imagem. Digite manualmente.',
-        erro: true,
-      );
+
+    if (leitura.candidatos.isEmpty) {
+      final mensagem = switch (leitura.foraDaFaixaDoMedidor) {
+        'HI' => 'O medidor mostra "HI": glicemia acima do que ele consegue '
+            'medir. Procure atendimento médico.',
+        'LO' => 'O medidor mostra "LO": glicemia abaixo do que ele consegue '
+            'medir. Procure atendimento médico.',
+        _ => 'Não identificamos o valor. Tente fotografar só o visor, de '
+            'frente, sem reflexo, ou digite o valor.',
+      };
+      mostrarMensagem(context, mensagem, erro: true);
       return;
     }
 
     // RN10: o valor lido só é usado depois de confirmado pelo usuário.
-    final confirmado = await showDialog<bool>(
+    final escolhido = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirme o valor lido'),
-        content: Text(
-          'Identificamos $valor mg/dL na imagem.\n'
-          'O valor está igual ao do medidor?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Não, vou digitar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sim, usar valor'),
-          ),
-        ],
+      builder: (context) => _DialogoConfirmarLeitura(
+        candidatos: leitura!.candidatos,
       ),
     );
-    if (confirmado == true) {
-      _glicemiaController.text = valor.toString();
+    if (escolhido != null) {
+      _glicemiaController.text = escolhido.toString();
     }
   }
 
@@ -128,6 +121,8 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
       autor: widget.sessao.usuario!,
       valorMgdl: int.parse(_glicemiaController.text.trim()),
       observacao: _observacaoController.text,
+      contexto: _contexto,
+      sintomas: _sintomas.toList(),
     );
 
     if (!mounted) {
@@ -262,17 +257,29 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                         clipBehavior: Clip.antiAlias,
                         child: _lendoImagem
                             ? const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.primaria,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      color: AppColors.primaria,
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text('Lendo o visor...'),
+                                  ],
                                 ),
                               )
                             : _imagem != null
                                 ? Image.file(_imagem!, fit: BoxFit.cover)
                                 : const Center(
-                                    child: Text(
-                                      'Tire uma foto do medidor para\npreencher o valor (opcional)',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Color(0xFF7A7A7A)),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Text(
+                                        'Tire uma foto só do visor do medidor, '
+                                        'de frente e sem reflexo, para '
+                                        'preencher o valor (opcional)',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Color(0xFF666666)),
+                                      ),
                                     ),
                                   ),
                       ),
@@ -290,13 +297,21 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                         validator: RegistroController.validarGlicemia,
                       ),
                       const SizedBox(height: 16),
+                      SeletorContextoSintomas(
+                        fundoEscuro: true,
+                        contexto: _contexto,
+                        sintomas: _sintomas,
+                        onContexto: (valor) => setState(() => _contexto = valor),
+                        onSintomas: (valor) => setState(() => _sintomas = valor),
+                      ),
+                      const SizedBox(height: 16),
                       const RotuloCampo('Observação (opcional)', cor: Colors.white),
                       TextFormField(
                         controller: _observacaoController,
                         maxLines: 2,
                         style: const TextStyle(fontSize: 16),
                         decoration: decoracaoCampoBranco(
-                          hintText: 'Ex.: após o almoço, tontura...',
+                          hintText: 'Ex.: comi mais doce no almoço',
                           corBorda: Colors.white,
                         ),
                       ),
@@ -334,6 +349,70 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                 ),
               ),
       ),
+    );
+  }
+}
+
+// RN10: o usuário confirma o valor lido ou escolhe outra opção.
+class _DialogoConfirmarLeitura extends StatelessWidget {
+  final List<int> candidatos;
+
+  const _DialogoConfirmarLeitura({required this.candidatos});
+
+  @override
+  Widget build(BuildContext context) {
+    final principal = candidatos.first;
+    final outros = candidatos.skip(1).toList();
+
+    return AlertDialog(
+      title: const Text('Confirme o valor lido'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Identificamos na imagem:'),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              '$principal mg/dL',
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaria,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text('Confira se é o mesmo valor do medidor.'),
+          if (outros.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text('Não é? Talvez seja:'),
+            Wrap(
+              spacing: 8,
+              children: outros
+                  .map((valor) => ActionChip(
+                        label: Text('$valor'),
+                        onPressed: () => Navigator.pop(context, valor),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Vou digitar'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaria),
+          onPressed: () => Navigator.pop(context, principal),
+          child: const Text(
+            'Usar este valor',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }

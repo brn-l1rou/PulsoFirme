@@ -41,6 +41,8 @@ class RegistroController extends ChangeNotifier {
     required Usuario autor,
     required int valorMgdl,
     String? observacao,
+    String? contexto,
+    List<String> sintomas = const [],
   }) {
     final status = classificarGlicemia(
       valor: valorMgdl,
@@ -57,6 +59,8 @@ class RegistroController extends ChangeNotifier {
         observacao: (observacao == null || observacao.trim().isEmpty)
             ? null
             : observacao.trim(),
+        contexto: contexto,
+        sintomas: sintomas,
       ));
       return status;
     });
@@ -68,6 +72,8 @@ class RegistroController extends ChangeNotifier {
     required Usuario autor,
     required int valorMgdl,
     required DateTime dataMedicao,
+    String? contexto,
+    List<String> sintomas = const [],
   }) {
     final status = classificarGlicemia(
       valor: valorMgdl,
@@ -82,6 +88,8 @@ class RegistroController extends ChangeNotifier {
         dataMedicao: dataMedicao,
         status: status,
         autor: autor,
+        contexto: contexto,
+        sintomas: sintomas,
       ));
       return status;
     });
