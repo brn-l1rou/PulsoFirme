@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +7,7 @@ import '../controllers/registro_controller.dart';
 import '../controllers/sessao_controller.dart';
 import '../models/medicao.dart';
 import '../models/usuario.dart';
+import '../services/ocr_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/campos.dart';
 import '../widgets/logo_app.dart';
@@ -23,7 +26,10 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
   final _formKey = GlobalKey<FormState>();
   final _glicemiaController = TextEditingController();
   final _observacaoController = TextEditingController();
+  final OcrService _ocrService = OcrService();
   late final RegistroController _controller;
+  File? _imagem;
+  bool _lendoImagem = false;
 
   @override
   void initState() {
@@ -44,9 +50,72 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
     super.dispose();
   }
 
-  // RF04/RF09: a leitura por imagem (OCR) ainda será implementada.
-  void _leituraPorImagem() {
-    mostrarMensagem(context, 'Leitura por imagem em desenvolvimento.');
+  // RF04/RF09: lê o valor do medidor por foto. O Android/iOS pede a
+  // permissão da câmera na primeira vez que ela é usada.
+  Future<void> _leituraPorImagem({required bool usarCamera}) async {
+    setState(() => _lendoImagem = true);
+    LeituraImagem? leitura;
+    try {
+      leitura = await _ocrService.lerMedidor(usarCamera: usarCamera);
+    } on PlatformException catch (e) {
+      if (mounted) {
+        mostrarMensagem(
+          context,
+          e.code.contains('access_denied')
+              ? 'Permita o acesso à câmera/galeria nas configurações do aparelho.'
+              : 'Não foi possível abrir a imagem.',
+          erro: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível ler a imagem.', erro: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _lendoImagem = false);
+      }
+    }
+
+    if (leitura == null || !mounted) {
+      return;
+    }
+
+    setState(() => _imagem = leitura!.imagem);
+    final valor = leitura.valor;
+    if (valor == null) {
+      mostrarMensagem(
+        context,
+        'Não identificamos o valor na imagem. Digite manualmente.',
+        erro: true,
+      );
+      return;
+    }
+
+    // RN10: o valor lido só é usado depois de confirmado pelo usuário.
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirme o valor lido'),
+        content: Text(
+          'Identificamos $valor mg/dL na imagem.\n'
+          'O valor está igual ao do medidor?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Não, vou digitar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sim, usar valor'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado == true) {
+      _glicemiaController.text = valor.toString();
+    }
   }
 
   Future<void> _salvar(Usuario paciente) async {
@@ -56,7 +125,7 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
 
     final status = await _controller.registrar(
       paciente: paciente,
-      registradoPor: widget.sessao.usuario!.uid,
+      autor: widget.sessao.usuario!,
       valorMgdl: int.parse(_glicemiaController.text.trim()),
       observacao: _observacaoController.text,
     );
@@ -160,7 +229,9 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                         children: [
                           IconButton(
                             tooltip: 'Escolher imagem',
-                            onPressed: _leituraPorImagem,
+                            onPressed: _lendoImagem
+                                ? null
+                                : () => _leituraPorImagem(usarCamera: false),
                             icon: const Icon(
                               Icons.add_photo_alternate_outlined,
                               color: Colors.white,
@@ -169,7 +240,9 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                           ),
                           IconButton(
                             tooltip: 'Tirar foto',
-                            onPressed: _leituraPorImagem,
+                            onPressed: _lendoImagem
+                                ? null
+                                : () => _leituraPorImagem(usarCamera: true),
                             icon: const Icon(
                               Icons.photo_camera_outlined,
                               color: Colors.white,
@@ -186,12 +259,22 @@ class _AdicionarRegistroScreenState extends State<AdicionarRegistroScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Imagem do medidor (opcional)',
-                            style: TextStyle(color: Color(0xFF7A7A7A)),
-                          ),
-                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: _lendoImagem
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primaria,
+                                ),
+                              )
+                            : _imagem != null
+                                ? Image.file(_imagem!, fit: BoxFit.cover)
+                                : const Center(
+                                    child: Text(
+                                      'Tire uma foto do medidor para\npreencher o valor (opcional)',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Color(0xFF7A7A7A)),
+                                    ),
+                                  ),
                       ),
                       const SizedBox(height: 24),
                       const RotuloCampo('Glicemia (mg/dL)', cor: Colors.white),

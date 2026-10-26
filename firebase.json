@@ -1,1 +1,43 @@
-{"firestore":{"database":"(default)","location":"nam5","rules":"firestore.rules","indexes":"firestore.indexes.json"},"auth":{"providers":{}},"flutter":{"platforms":{"android":{"default":{"projectId":"pulso-firme-7466e","appId":"1:179870193328:android:55d9dbc7202b56a91c4d75","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"pulso-firme-7466e","configurations":{"android":"1:179870193328:android:55d9dbc7202b56a91c4d75"}}}}}}
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {}
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "pulso-firme-7466e",
+          "appId": "1:179870193328:android:55d9dbc7202b56a91c4d75",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "pulso-firme-7466e",
+          "configurations": {
+            "android": "1:179870193328:android:55d9dbc7202b56a91c4d75"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../controllers/sessao_controller.dart';
 import '../models/convite.dart';
@@ -10,6 +9,8 @@ import '../services/user_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/cabecalho_curvo.dart';
 import '../widgets/campos.dart';
+import '../widgets/dialogos.dart';
+import 'agendamentos_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   final SessaoController sessao;
@@ -32,15 +33,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   Usuario get _usuario => widget.sessao.usuario!;
 
+  // O Future fica em cache para o FutureBuilder não recarregar a lista a
+  // cada rebuild; só muda quando os vínculos mudam.
   Future<List<Usuario>> _vinculados() {
-    if (_usuario.isCuidador) {
-      return Future.value(widget.sessao.pacientes);
-    }
-
-    final chave = _usuario.cuidadoresAutorizados.join(',');
+    final ids = _usuario.isCuidador
+        ? widget.sessao.pacientes.map((p) => p.uid).toList()
+        : _usuario.cuidadoresAutorizados;
+    final chave = ids.join(',');
     if (_cuidadores == null || _chaveCuidadores != chave) {
       _chaveCuidadores = chave;
-      _cuidadores = _userService.getUsuarios(_usuario.cuidadoresAutorizados);
+      _cuidadores = _usuario.isCuidador
+          ? Future.value(widget.sessao.pacientes)
+          : _userService.getUsuarios(ids);
     }
     return _cuidadores!;
   }
@@ -57,37 +61,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
     TextInputType teclado = TextInputType.text,
     String? Function(String?)? validator,
   }) {
-    final controller = TextEditingController(text: valorInicial);
-    final formKey = GlobalKey<FormState>();
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(titulo),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            keyboardType: teclado,
-            autofocus: true,
-            validator: validator,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, controller.text.trim());
-              }
-            },
-            child: const Text('Salvar'),
-          ),
-        ],
+      builder: (context) => DialogoTexto(
+        titulo: titulo,
+        valorInicial: valorInicial,
+        teclado: teclado,
+        validator: validator,
       ),
-    ).whenComplete(controller.dispose);
+    );
   }
 
   Future<void> _executar(Future<void> Function() acao, String sucesso) async {
@@ -140,85 +122,22 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   // RN15: limites mínimo e máximo configuráveis por paciente.
   Future<void> _editarLimites() async {
-    final minimoController =
-        TextEditingController(text: _usuario.limiteMinimo.toString());
-    final maximoController =
-        TextEditingController(text: _usuario.limiteMaximo.toString());
-    final formKey = GlobalKey<FormState>();
-
-    String? validarLimite(String? value) {
-      final numero = int.tryParse(value ?? '');
-      if (numero == null || numero <= 0 || numero > 600) {
-        return 'Valor inválido.';
-      }
-      return null;
-    }
-
-    final salvar = await showDialog<bool>(
+    final limites = await showDialog<LimitesGlicemia>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Limites de glicemia (mg/dL)'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: minimoController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Mínimo'),
-                validator: validarLimite,
-              ),
-              TextFormField(
-                controller: maximoController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Máximo'),
-                validator: (value) {
-                  final erro = validarLimite(value);
-                  if (erro != null) {
-                    return erro;
-                  }
-                  final minimo = int.tryParse(minimoController.text) ?? 0;
-                  return int.parse(value!) <= minimo
-                      ? 'O máximo deve ser maior que o mínimo.'
-                      : null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, true);
-              }
-            },
-            child: const Text('Salvar'),
-          ),
-        ],
+      builder: (context) => DialogoLimites(
+        minimoInicial: _usuario.limiteMinimo,
+        maximoInicial: _usuario.limiteMaximo,
       ),
     );
-
-    final minimo = int.tryParse(minimoController.text);
-    final maximo = int.tryParse(maximoController.text);
-    minimoController.dispose();
-    maximoController.dispose();
-    if (salvar != true || minimo == null || maximo == null) {
+    if (limites == null) {
       return;
     }
 
     await _executar(
       () => _userService.atualizarLimites(
         _usuario.uid,
-        limiteMinimo: minimo,
-        limiteMaximo: maximo,
+        limiteMinimo: limites.minimo,
+        limiteMaximo: limites.maximo,
       ),
       'Limites atualizados!',
     );
@@ -268,6 +187,44 @@ class _PerfilScreenState extends State<PerfilScreen> {
       );
       await widget.sessao.recarregarPacientes();
     }, 'Agora você acompanha ${convite.pacienteNome}!');
+  }
+
+  Future<void> _desvincular(Usuario outro) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Desvincular ${outro.nome}?'),
+        content: Text(
+          _usuario.isPaciente
+              ? 'Este cuidador deixará de ver suas medições e de receber seus alertas.'
+              : 'Você deixará de ver as medições e de receber os alertas deste paciente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Desvincular',
+              style: TextStyle(color: AppColors.primaria),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) {
+      return;
+    }
+
+    await _executar(() async {
+      await _conviteService.desvincular(
+        pacienteId: _usuario.isPaciente ? _usuario.uid : outro.uid,
+        cuidadorId: _usuario.isPaciente ? outro.uid : _usuario.uid,
+      );
+      await widget.sessao.recarregarPacientes();
+    }, 'Vínculo removido.');
   }
 
   Future<void> _confirmarSaida() async {
@@ -334,6 +291,31 @@ class _PerfilScreenState extends State<PerfilScreen> {
               rotulo: 'Limites de glicemia',
               valor: '${usuario.limiteMinimo} a ${usuario.limiteMaximo} mg/dL',
               onEditar: _editarLimites,
+            ),
+          if (widget.sessao.pacienteSelecionado != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(30, 4, 30, 0),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.primaria),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AgendamentosScreen(sessao: widget.sessao),
+                  ),
+                ),
+                icon: const Icon(Icons.alarm, color: AppColors.primaria),
+                label: Text(
+                  usuario.isPaciente
+                      ? 'Medições agendadas'
+                      : 'Medições agendadas de ${widget.sessao.pacienteSelecionado!.nome}',
+                  style: const TextStyle(color: AppColors.primaria),
+                ),
+              ),
             ),
           const SizedBox(height: 20),
           _botaoVinculos(),
@@ -420,6 +402,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     leading: const Icon(Icons.person, color: AppColors.primaria),
                     title: Text(v.nome),
                     subtitle: Text(v.telefone),
+                    trailing: IconButton(
+                      tooltip: 'Desvincular',
+                      icon: const Icon(Icons.link_off, color: AppColors.primaria),
+                      onPressed: () => _desvincular(v),
+                    ),
                   ))
               .toList(),
         );

@@ -44,6 +44,21 @@ service cloud.firestore {
               .union([request.auth.uid].toSet());
       }
 
+      // Desvincular: o paciente ou o cuidador pode tirar o próprio uid da
+      // lista do outro (e nada além disso).
+      function removendoProprioVinculo() {
+        let alterados = request.resource.data.diff(resource.data).affectedKeys();
+        let uid = request.auth.uid;
+        return (alterados.hasOnly(['cuidadoresAutorizados'])
+            && uid in resource.data.get('cuidadoresAutorizados', [])
+            && request.resource.data.cuidadoresAutorizados.toSet()
+              == resource.data.cuidadoresAutorizados.toSet().difference([uid].toSet()))
+          || (alterados.hasOnly(['pacientesVinculados'])
+            && uid in resource.data.get('pacientesVinculados', [])
+            && request.resource.data.pacientesVinculados.toSet()
+              == resource.data.pacientesVinculados.toSet().difference([uid].toSet()));
+      }
+
       allow create: if autenticado()
         && request.auth.uid == userId
         && request.resource.data.tipoUsuario in ['paciente', 'cuidador'];
@@ -55,7 +70,8 @@ service cloud.firestore {
 
       allow update: if autenticado()
         && ((request.auth.uid == userId && camposImutaveisPreservados())
-          || aceitandoConvite());
+          || aceitandoConvite()
+          || removendoProprioVinculo());
 
       allow delete: if false;
     }
@@ -88,6 +104,64 @@ service cloud.firestore {
         && (request.auth.uid in cuidadoresDe(pacienteId)
           || (request.auth.uid == pacienteId
             && cuidadoresDe(pacienteId).size() == 0));
+    }
+
+    // Tokens FCM do aparelho: só o dono lê e escreve (as Cloud Functions
+    // usam o Admin SDK, que não passa pelas regras).
+    match /usuarios/{userId}/tokens/{token} {
+      allow read, write: if autenticado() && request.auth.uid == userId;
+    }
+
+    // RF08: log imutável, gravado junto com a medição (mesmo batch).
+    match /usuarios/{pacienteId}/auditoria/{auditoriaId} {
+      function medicaoPath() {
+        return /databases/$(database)/documents/usuarios/$(pacienteId)/medicoes/$(request.resource.data.medicaoId);
+      }
+
+      allow read: if vinculadoAoPaciente(pacienteId);
+
+      allow create: if vinculadoAoPaciente(pacienteId)
+        && request.resource.data.uidResponsavel == request.auth.uid
+        && request.resource.data.data == request.time
+        && request.resource.data.acao in ['criacao', 'edicao', 'exclusao']
+        && (request.resource.data.acao == 'exclusao'
+          ? !existsAfter(medicaoPath())
+          : existsAfter(medicaoPath()));
+
+      allow update, delete: if false;
+    }
+
+    // RF14: medições programadas.
+    match /usuarios/{pacienteId}/agendamentos/{agendamentoId} {
+      function agendamentoValido() {
+        let d = request.resource.data;
+        return d.hora is string
+          && d.hora.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && d.frequencia in ['diaria', 'semanal', 'quinzenal']
+          && (d.frequencia == 'diaria'
+            || (d.diaSemana is int && d.diaSemana >= 1 && d.diaSemana <= 7))
+          && d.toleranciaMinutos is int
+          && d.toleranciaMinutos > 0
+          && d.toleranciaMinutos <= 240
+          && d.ativo is bool;
+      }
+
+      allow read, delete: if vinculadoAoPaciente(pacienteId);
+      allow create, update: if vinculadoAoPaciente(pacienteId) && agendamentoValido();
+    }
+
+    // Alertas: o paciente só cria o SOS (RF06); "agendada" e "perdida" são
+    // criados pelas Cloud Functions.
+    match /usuarios/{pacienteId}/alertas/{alertaId} {
+      allow read: if vinculadoAoPaciente(pacienteId);
+
+      allow create: if autenticado()
+        && request.auth.uid == pacienteId
+        && request.resource.data.tipo == 'sos'
+        && request.resource.data.criadoPor == request.auth.uid
+        && request.resource.data.criadoEm == request.time;
+
+      allow update, delete: if false;
     }
 
     match /convites/{conviteId} {

@@ -20,6 +20,7 @@ class SessaoController extends ChangeNotifier {
   String? _pacienteSelecionadoId;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _descartado = false;
 
   Usuario? get usuario => _usuario;
   List<Usuario> get pacientes => _pacientes;
@@ -50,7 +51,7 @@ class SessaoController extends ChangeNotifier {
       onError: (Object erro) {
         _errorMessage = 'Erro ao carregar os dados do usuário.';
         _isLoading = false;
-        notifyListeners();
+        _notificar();
       },
     );
   }
@@ -64,7 +65,7 @@ class SessaoController extends ChangeNotifier {
     }
 
     _isLoading = false;
-    notifyListeners();
+    _notificar();
   }
 
   Future<void> recarregarPacientes() async {
@@ -85,7 +86,15 @@ class SessaoController extends ChangeNotifier {
       _pacienteSelecionadoId =
           _pacientes.isNotEmpty ? _pacientes.first.uid : null;
     }
-    notifyListeners();
+    _notificar();
+  }
+
+  // As cargas são assíncronas e podem terminar depois que a tela foi
+  // fechada (por exemplo, ao sair da conta).
+  void _notificar() {
+    if (!_descartado) {
+      notifyListeners();
+    }
   }
 
   void selecionarPaciente(String pacienteId) {
@@ -101,6 +110,7 @@ class SessaoController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _descartado = true;
     _usuarioSubscription?.cancel();
     super.dispose();
   }

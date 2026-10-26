@@ -68,7 +68,8 @@ class _GlicemiaPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final maiorValor = medicoes.map((m) => m.valorMgdl).reduce(math.max);
-    final valorTopo = (math.max(maiorValor, 250) / 50).ceil() * 50.0;
+    final referencia = math.max(math.max(maiorValor, limiteMaximo), 250);
+    final valorTopo = (referencia / 50).ceil() * 50.0;
 
     final area = Rect.fromLTRB(
       _margemEsquerda,

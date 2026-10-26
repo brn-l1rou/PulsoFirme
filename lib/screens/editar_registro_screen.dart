@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import '../controllers/registro_controller.dart';
 import '../controllers/sessao_controller.dart';
 import '../models/medicao.dart';
+import '../models/registro_auditoria.dart';
 import '../models/usuario.dart';
 import '../theme/app_colors.dart';
+import '../services/medicao_service.dart';
 import '../utils/formatadores.dart';
 import '../widgets/cabecalho_curvo.dart';
 import '../widgets/campos.dart';
@@ -74,9 +76,17 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
       return;
     }
 
+    final selecionado =
+        DateTime(data.year, data.month, data.day, hora.hour, hora.minute);
+    if (selecionado.isAfter(DateTime.now())) {
+      if (mounted) {
+        mostrarMensagem(context, 'O horário não pode estar no futuro.', erro: true);
+      }
+      return;
+    }
+
     setState(() {
-      _dataMedicao =
-          DateTime(data.year, data.month, data.day, hora.hour, hora.minute);
+      _dataMedicao = selecionado;
       _horarioController.text = formatarDataHora(_dataMedicao);
     });
   }
@@ -89,7 +99,7 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
     final status = await _controller.atualizar(
       paciente: paciente,
       medicao: widget.medicao,
-      atualizadoPor: widget.sessao.usuario!.uid,
+      autor: widget.sessao.usuario!,
       valorMgdl: int.parse(_glicemiaController.text.trim()),
       dataMedicao: _dataMedicao,
     );
@@ -136,7 +146,10 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
       return;
     }
 
-    final sucesso = await _controller.excluir(widget.medicao);
+    final sucesso = await _controller.excluir(
+      widget.medicao,
+      autor: widget.sessao.usuario!,
+    );
     if (!mounted) {
       return;
     }
@@ -269,6 +282,8 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
+                    _HistoricoAuditoria(medicao: widget.medicao),
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -276,6 +291,57 @@ class _EditarRegistroScreenState extends State<EditarRegistroScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// RF08: mostra quem registrou e quem alterou a medição.
+class _HistoricoAuditoria extends StatefulWidget {
+  final Medicao medicao;
+
+  const _HistoricoAuditoria({required this.medicao});
+
+  @override
+  State<_HistoricoAuditoria> createState() => _HistoricoAuditoriaState();
+}
+
+class _HistoricoAuditoriaState extends State<_HistoricoAuditoria> {
+  late final Stream<List<RegistroAuditoria>> _stream = MedicaoService()
+      .watchAuditoria(widget.medicao.pacienteId, widget.medicao.id);
+
+  String _descricao(RegistroAuditoria registro) {
+    final valores = switch (registro.acao) {
+      'edicao' => ' (${registro.valorAnterior} → ${registro.valorNovo} mg/dL)',
+      'criacao' => ' (${registro.valorNovo} mg/dL)',
+      _ => '',
+    };
+    return '${registro.acaoFormatada} por ${registro.nomeResponsavel}$valores';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<RegistroAuditoria>>(
+      stream: _stream,
+      builder: (context, snapshot) {
+        final registros = snapshot.data ?? [];
+        if (registros.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const RotuloCampo('Histórico', tamanho: 16),
+            ...registros.map((registro) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '${formatarDataHora(registro.data)} • ${_descricao(registro)}',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                )),
+          ],
+        );
+      },
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
@@ -36,7 +38,7 @@ class RegistroController extends ChangeNotifier {
   // Retorna o status da medição salva, ou null em caso de erro.
   Future<StatusGlicemia?> registrar({
     required Usuario paciente,
-    required String registradoPor,
+    required Usuario autor,
     required int valorMgdl,
     String? observacao,
   }) {
@@ -51,7 +53,7 @@ class RegistroController extends ChangeNotifier {
         pacienteId: paciente.uid,
         valorMgdl: valorMgdl,
         status: status,
-        registradoPor: registradoPor,
+        autor: autor,
         observacao: (observacao == null || observacao.trim().isEmpty)
             ? null
             : observacao.trim(),
@@ -63,7 +65,7 @@ class RegistroController extends ChangeNotifier {
   Future<StatusGlicemia?> atualizar({
     required Usuario paciente,
     required Medicao medicao,
-    required String atualizadoPor,
+    required Usuario autor,
     required int valorMgdl,
     required DateTime dataMedicao,
   }) {
@@ -75,22 +77,21 @@ class RegistroController extends ChangeNotifier {
 
     return _executar(() async {
       await _aguardarEscrita(_medicaoService.atualizarMedicao(
-        pacienteId: paciente.uid,
-        medicaoId: medicao.id,
+        medicao: medicao,
         valorMgdl: valorMgdl,
         dataMedicao: dataMedicao,
         status: status,
-        atualizadoPor: atualizadoPor,
+        autor: autor,
       ));
       return status;
     });
   }
 
-  Future<bool> excluir(Medicao medicao) async {
+  Future<bool> excluir(Medicao medicao, {required Usuario autor}) async {
     final resultado = await _executar(() async {
       await _aguardarEscrita(_medicaoService.excluirMedicao(
-        pacienteId: medicao.pacienteId,
-        medicaoId: medicao.id,
+        medicao: medicao,
+        autor: autor,
       ));
       return true;
     });
@@ -110,8 +111,12 @@ class RegistroController extends ChangeNotifier {
   // Sem conexão, a escrita só é confirmada quando a internet voltar.
   // O Firestore já guarda a alteração localmente e sincroniza depois
   // (RN22), então não deixamos a tela travada esperando o servidor.
-  Future<void> _aguardarEscrita(Future<void> escrita) {
-    return escrita.timeout(const Duration(seconds: 5), onTimeout: () {});
+  Future<void> _aguardarEscrita(Future<void> escrita) async {
+    try {
+      await escrita.timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      // Escrita pendente: será enviada quando a conexão voltar.
+    }
   }
 
   Future<T?> _executar<T>(Future<T> Function() acao) async {
@@ -125,6 +130,9 @@ class RegistroController extends ChangeNotifier {
       _errorMessage = e.code == 'permission-denied'
           ? 'Você não tem permissão para esta ação.'
           : 'Erro ao salvar o registro.';
+      return null;
+    } catch (_) {
+      _errorMessage = 'Erro inesperado ao salvar o registro.';
       return null;
     } finally {
       _isLoading = false;

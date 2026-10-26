@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../controllers/sessao_controller.dart';
 import '../models/medicao.dart';
+import '../models/usuario.dart';
 import '../services/medicao_service.dart';
+import '../services/relatorio_pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/cabecalho_curvo.dart';
+import '../widgets/campos.dart';
 import '../widgets/glicemia_chart.dart';
 import '../widgets/logo_app.dart';
 import '../widgets/medicao_card.dart';
@@ -28,11 +31,40 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
   int _dias = 30;
   String? _chaveDoStream;
   Stream<List<Medicao>>? _stream;
+  List<Medicao>? _medicoesCarregadas;
+  bool _gerandoPdf = false;
+
+  Future<void> _gerarPdf(Usuario paciente) async {
+    final medicoes = _medicoesCarregadas;
+    if (medicoes == null) {
+      return;
+    }
+
+    setState(() => _gerandoPdf = true);
+    try {
+      final servico = RelatorioPdfService();
+      final pdf = await servico.gerar(
+        paciente: paciente,
+        medicoes: medicoes,
+        dias: _dias,
+      );
+      await servico.compartilhar(pdf: pdf, paciente: paciente);
+    } catch (_) {
+      if (mounted) {
+        mostrarMensagem(context, 'Não foi possível gerar o PDF.', erro: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _gerandoPdf = false);
+      }
+    }
+  }
 
   Stream<List<Medicao>> _medicoesDe(String pacienteId) {
     final chave = '$pacienteId-$_dias';
     if (_stream == null || _chaveDoStream != chave) {
       _chaveDoStream = chave;
+      _medicoesCarregadas = null;
       final hoje = DateTime.now();
       final inicio = DateTime(hoje.year, hoje.month, hoje.day)
           .subtract(Duration(days: _dias - 1));
@@ -53,6 +85,30 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
           CabecalhoCurvo(
             alturaTopo: 140,
             topo: const LogoApp(tamanho: 100),
+            // RF16: relatório em PDF para enviar ao médico.
+            acaoDireita: paciente == null
+                ? null
+                : _gerandoPdf
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        tooltip: 'Gerar PDF para o médico',
+                        onPressed: () => _gerarPdf(paciente),
+                        icon: const Icon(
+                          Icons.picture_as_pdf_outlined,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
             titulo: Column(
               children: [
                 const TituloCabecalho('Relatório'),
@@ -116,6 +172,7 @@ class _RelatorioScreenState extends State<RelatorioScreen> {
                 }
 
                 final medicoes = snapshot.data!;
+                _medicoesCarregadas = medicoes;
                 return Column(
                   children: [
                     _Resumo(medicoes: medicoes),

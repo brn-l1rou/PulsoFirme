@@ -20,6 +20,8 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
   late final CadastroController _controller;
 
   String _tipoUsuario = 'paciente';
+  bool _senhaVisivel = false;
+  bool _confirmacaoVisivel = false;
 
   @override
   void initState() {
@@ -165,11 +167,31 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
       return 'Informe sua senha.';
     }
 
-    if (value.length < 6) {
-      return 'A senha deve ter pelo menos 6 caracteres.';
+    // RNF02: mínimo de 8 caracteres, com maiúscula, minúscula, número e
+    // caractere especial.
+    final faltando = <String>[
+      if (value.length < 8) '8 caracteres',
+      if (!RegExp(r'[A-Z]').hasMatch(value)) '1 letra maiúscula',
+      if (!RegExp(r'[a-z]').hasMatch(value)) '1 letra minúscula',
+      if (!RegExp(r'[0-9]').hasMatch(value)) '1 número',
+      if (!RegExp(r'[^A-Za-z0-9]').hasMatch(value)) '1 caractere especial',
+    ];
+    if (faltando.isNotEmpty) {
+      return 'A senha precisa ter: ${faltando.join(', ')}.';
     }
 
     return null;
+  }
+
+  Widget _botaoVisibilidade(bool visivel, VoidCallback onPressed) {
+    return IconButton(
+      tooltip: visivel ? 'Ocultar senha' : 'Mostrar senha',
+      icon: Icon(
+        visivel ? Icons.visibility_off : Icons.visibility,
+        color: Colors.white,
+      ),
+      onPressed: onPressed,
+    );
   }
 
   String? _validarConfirmacaoSenha(String? value) {
@@ -191,7 +213,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
 
     final nome = _nomeController.text.trim();
     final email = _emailController.text.trim();
-    final senha = _senhaController.text.trim();
+    final senha = _senhaController.text;
 
     final sucesso = await _controller.cadastrar(
       nome: nome,
@@ -213,7 +235,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       return;
     }
 
@@ -450,12 +472,23 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _senhaController,
-                            obscureText: true,
+                            obscureText: !_senhaVisivel,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                             ),
-                            decoration: _decoracaoCampo(hintText: '******'),
+                            decoration: _decoracaoCampo(
+                              hintText: '********',
+                              suffixIcon: _botaoVisibilidade(_senhaVisivel, () {
+                                setState(() => _senhaVisivel = !_senhaVisivel);
+                              }),
+                            ).copyWith(
+                              errorMaxLines: 3,
+                              helperText:
+                                  'Mín. 8 caracteres, com maiúscula, minúscula, número e símbolo.',
+                              helperMaxLines: 2,
+                              helperStyle: const TextStyle(color: Colors.white70),
+                            ),
                             validator: _validarSenha,
                           ),
                         ],
@@ -478,12 +511,17 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _confirmarSenhaController,
-                            obscureText: true,
+                            obscureText: !_confirmacaoVisivel,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                             ),
-                            decoration: _decoracaoCampo(hintText: '******'),
+                            decoration: _decoracaoCampo(
+                              hintText: '********',
+                              suffixIcon: _botaoVisibilidade(_confirmacaoVisivel, () {
+                                setState(() => _confirmacaoVisivel = !_confirmacaoVisivel);
+                              }),
+                            ),
                             validator: _validarConfirmacaoSenha,
                           ),
                         ],

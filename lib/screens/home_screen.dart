@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/sessao_controller.dart';
+import '../services/notificacao_service.dart';
 import '../theme/app_colors.dart';
 import 'perfil_screen.dart';
 import 'registros_screen.dart';
@@ -16,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final SessaoController _sessao = SessaoController();
+  final NotificacaoService _notificacoes = NotificacaoService();
   int _abaAtual = 1;
 
   @override
@@ -29,6 +32,27 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _sessao.iniciar(uid);
+    _notificacoes.registrar(uid, onMensagem: _mostrarNotificacao);
+  }
+
+  // Notificação recebida com o app aberto.
+  void _mostrarNotificacao(RemoteMessage mensagem) {
+    final notificacao = mensagem.notification;
+    if (!mounted || notificacao == null) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.primaria,
+        duration: const Duration(seconds: 8),
+        content: Text(
+          [notificacao.title, notificacao.body]
+              .whereType<String>()
+              .join('\n'),
+        ),
+      ),
+    );
   }
 
   @override
@@ -38,6 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _sair() async {
+    final uid = _sessao.usuario?.uid;
+    if (uid != null) {
+      await _notificacoes.remover(uid);
+    }
     await _sessao.sair();
     if (!mounted) {
       return;

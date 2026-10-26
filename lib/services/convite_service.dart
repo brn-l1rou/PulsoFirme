@@ -57,6 +57,26 @@ class ConviteService {
     return batch.commit();
   }
 
+  // Desfaz o vínculo dos dois lados. Pode ser feito pelo paciente ou pelo
+  // cuidador; as regras permitem que cada um tire o próprio uid da lista
+  // do outro.
+  Future<void> desvincular({
+    required String pacienteId,
+    required String cuidadorId,
+  }) {
+    final batch = _firestore.batch();
+    final usuarios = _firestore.collection('usuarios');
+
+    batch.update(usuarios.doc(pacienteId), {
+      'cuidadoresAutorizados': FieldValue.arrayRemove([cuidadorId]),
+    });
+    batch.update(usuarios.doc(cuidadorId), {
+      'pacientesVinculados': FieldValue.arrayRemove([pacienteId]),
+    });
+
+    return batch.commit();
+  }
+
   Future<void> recusarConvite(Convite convite) {
     return _convites.doc(convite.id).update({
       'status': 'recusado',

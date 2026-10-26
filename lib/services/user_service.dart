@@ -42,9 +42,18 @@ class UserService {
         );
   }
 
+  // Ignora os usuários que não podem mais ser lidos (por exemplo, um
+  // paciente que desfez o vínculo), em vez de falhar a lista inteira.
   Future<List<Usuario>> getUsuarios(List<String> uids) async {
-    final docs = await Future.wait(uids.map((uid) => _usuarios.doc(uid).get()));
-    return docs.where((doc) => doc.exists).map(Usuario.fromDoc).toList();
+    final usuarios = await Future.wait(uids.map((uid) async {
+      try {
+        final doc = await _usuarios.doc(uid).get();
+        return doc.exists ? Usuario.fromDoc(doc) : null;
+      } on FirebaseException {
+        return null;
+      }
+    }));
+    return usuarios.whereType<Usuario>().toList();
   }
 
   Future<void> atualizarDados(
