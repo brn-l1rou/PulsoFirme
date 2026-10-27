@@ -15,6 +15,7 @@ class _TelaLoginState extends State<TelaLogin> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   late final LoginController _controller;
+  bool _senhaVisivel = false;
 
   @override
   void initState() {
@@ -38,11 +39,13 @@ class _TelaLoginState extends State<TelaLogin> {
   InputDecoration _decoracaoCampo({
     String? hintText,
     required Color fillColor,
+    Widget? suffixIcon,
   }) {
     return InputDecoration(
       hintText: hintText,
+      suffixIcon: suffixIcon,
       hintStyle: const TextStyle(
-        color: Color(0xFF7A7A7A),
+        color: Color(0xFF666666),
         fontSize: 18,
       ),
       filled: true,
@@ -94,12 +97,8 @@ class _TelaLoginState extends State<TelaLogin> {
   }
 
   String? _validarSenha(String? value) {
-    if (value == null || value.trim().isEmpty) {
+    if (value == null || value.isEmpty) {
       return 'Informe sua senha.';
-    }
-
-    if (value.length < 6) {
-      return 'A senha deve ter pelo menos 6 caracteres.';
     }
 
     return null;
@@ -111,7 +110,7 @@ class _TelaLoginState extends State<TelaLogin> {
     }
 
     final email = _emailController.text.trim();
-    final senha = _senhaController.text.trim();
+    final senha = _senhaController.text;
 
     final sucesso = await _controller.signIn(
       email: email,
@@ -208,7 +207,7 @@ class _TelaLoginState extends State<TelaLogin> {
                      padding: const EdgeInsets.symmetric(horizontal: 30),
                      child: TextFormField(
                        controller: _senhaController,
-                       obscureText: true,
+                       obscureText: !_senhaVisivel,
                        style: const TextStyle(
                          color: Colors.black,
                          fontSize: 18,
@@ -216,6 +215,19 @@ class _TelaLoginState extends State<TelaLogin> {
                        decoration: _decoracaoCampo(
                          hintText: 'Senha',
                          fillColor: const Color(0xFFE5E5E5),
+                         // RF18: mostrar/ocultar a senha digitada.
+                         suffixIcon: IconButton(
+                           tooltip: _senhaVisivel ? 'Ocultar senha' : 'Mostrar senha',
+                           icon: Icon(
+                             _senhaVisivel ? Icons.visibility_off : Icons.visibility,
+                             color: const Color(0xFF666666),
+                           ),
+                           onPressed: () {
+                             setState(() {
+                               _senhaVisivel = !_senhaVisivel;
+                             });
+                           },
+                         ),
                        ),
                        validator: _validarSenha,
                      ),
@@ -253,7 +265,7 @@ class _TelaLoginState extends State<TelaLogin> {
                      children: [
                        const Text(
                          'Não tem conta? ',
-                         style: TextStyle(color: Color(0xFF00BFA5)),
+                         style: TextStyle(color: Color(0xFF00796B)),
                        ),
                        GestureDetector(
                          onTap: () {
@@ -267,7 +279,7 @@ class _TelaLoginState extends State<TelaLogin> {
                          child: const Text(
                            'Cadastro',
                            style: TextStyle(
-                             color: Color(0xFF00BFA5),
+                             color: Color(0xFF00796B),
                              fontWeight: FontWeight.bold,
                            ),
                          ),

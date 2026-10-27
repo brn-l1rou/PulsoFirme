@@ -47,6 +47,9 @@ class CadastroController extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       _errorMessage = _mapFirebaseErrorToMessage(e);
       return false;
+    } on FirebaseException {
+      _errorMessage = 'Erro ao salvar os dados do cadastro.';
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
