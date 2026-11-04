@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/pin_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/logo_carregando.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,10 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: AppColors.primaria,
       body: Center(
-        child: Image.asset(
-          'assets/logo_red_background.png',
-          width: 180,
-        ),
+        child: LogoCarregando(tamanho: 260),
       ),
     );
   }

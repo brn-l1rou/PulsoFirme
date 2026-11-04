@@ -51,6 +51,8 @@ dependencies:
   shared_preferences: ^2.5.6
   flutter_secure_storage: ^11.2.0
   crypto: ^3.0.8
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -62,11 +64,26 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
+# Ícone do app: gerado com `dart run flutter_launcher_icons`.
+# No Android 8+ o ícone é adaptativo: o símbolo branco (primeiro plano) fica
+# sobre o fundo vermelho, e cada aparelho recorta no seu formato.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo_red_background.png"
+  adaptive_icon_background: "#CF2B1C"
+  adaptive_icon_foreground: "assets/icone/icone_foreground.png"
+  # O primeiro plano já tem a margem da área segura.
+  adaptive_icon_foreground_inset: 0
+  remove_alpha_ios: true
+  background_color_ios: "#CF2B1C"
+
 flutter:
 
   # The following line ensures that the Material Icons font is
@@ -76,6 +93,9 @@ flutter:
   assets:
     - assets/logo_red_background.png
     - assets/logo_white_background.png
+    - assets/icone/icone_foreground.png
+    # Versão otimizada de assets/Pulso_Firme_loading.gif (ver lib/widgets/logo_carregando.dart).
+    - assets/animacao_carregando.gif
 
   fonts:
     - family: PlusJakartaSans

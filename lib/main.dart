@@ -7,6 +7,7 @@ import 'package:early_pulso_firme/screens/pin_screen.dart';
 import 'package:early_pulso_firme/screens/splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,15 @@ class MeuApp extends StatelessWidget {
       listenable: preferencias,
       builder: (context, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
+        // Calendários, seletores de hora e textos padrão em português do
+        // Brasil (dd/MM/aaaa e relógio de 24 horas).
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: const [Locale('pt', 'BR')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         // RNF05: o tamanho escolhido no app soma-se ao ajuste de fonte do
         // sistema.
         builder: (context, child) {
