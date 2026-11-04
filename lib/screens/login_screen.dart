@@ -208,6 +208,9 @@ class _TelaLoginState extends State<TelaLogin> {
                      child: TextFormField(
                        controller: _senhaController,
                        obscureText: !_senhaVisivel,
+                       keyboardType: TextInputType.visiblePassword,
+                       autocorrect: false,
+                       enableSuggestions: false,
                        style: const TextStyle(
                          color: Colors.black,
                          fontSize: 18,

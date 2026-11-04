@@ -18,6 +18,7 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _confirmarSenhaController = TextEditingController();
+  final _confirmacaoKey = GlobalKey<FormFieldState<String>>();
   late final CadastroController _controller;
 
   String _tipoUsuario = 'paciente';
@@ -75,22 +76,32 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
           width: 2,
         ),
       ),
+      // Sobre o fundo vermelho, o vermelho padrão dos erros ficava ilegível:
+      // a mensagem fica branca e a borda do campo com erro, âmbar.
+      errorStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+      ),
+      errorMaxLines: 3,
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(
-          color: Colors.red,
-          width: 2,
+          color: _corBordaErro,
+          width: 3,
         ),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(
-          color: Colors.red,
-          width: 2,
+          color: _corBordaErro,
+          width: 3,
         ),
       ),
     );
   }
+
+  static const Color _corBordaErro = Color(0xFFFFD54F);
 
   Future<void> _selecionarData() async {
     final dataSelecionada = await showDatePicker(
@@ -455,6 +466,20 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
                           TextFormField(
                             controller: _senhaController,
                             obscureText: !_senhaVisivel,
+                            // Com a senha visível, o teclado do Android ligava a
+                            // correção automática e podia alterar um dos campos
+                            // (ex.: espaço no fim), fazendo as senhas divergirem.
+                            keyboardType: TextInputType.visiblePassword,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            onChanged: (_) {
+                              // Revalida a confirmação ao mudar a senha, para o
+                              // erro sumir assim que as duas ficarem iguais.
+                              if (_confirmarSenhaController.text.isNotEmpty) {
+                                _confirmacaoKey.currentState?.validate();
+                              }
+                            },
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -492,8 +517,13 @@ class _TelaDeCadastroState extends State<TelaDeCadastro> {
                           ),
                           const SizedBox(height: 8),
                           TextFormField(
+                            key: _confirmacaoKey,
                             controller: _confirmarSenhaController,
                             obscureText: !_confirmacaoVisivel,
+                            keyboardType: TextInputType.visiblePassword,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,

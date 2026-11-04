@@ -6,6 +6,7 @@ import '../controllers/preferencias_controller.dart';
 import '../controllers/sessao_controller.dart';
 import '../services/notificacao_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/logo_carregando.dart';
 import 'modo_simplificado_screen.dart';
 import 'perfil_screen.dart';
 import 'registros_screen.dart';
@@ -84,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Scaffold(
             backgroundColor: AppColors.primaria,
             body: Center(
-              child: CircularProgressIndicator(color: Colors.white),
+              child: LogoCarregando(tamanho: 220, mensagem: 'Carregando...'),
             ),
           );
         }
