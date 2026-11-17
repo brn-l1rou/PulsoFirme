@@ -67,7 +67,11 @@ async function enviarPush(uids, { titulo, corpo, dados = {} }) {
     data: Object.fromEntries(
       Object.entries(dados).map(([chave, valor]) => [chave, String(valor)]),
     ),
-    android: { priority: "high" },
+    // Canal de alta prioridade criado pelo app (banner e som).
+    android: {
+      priority: "high",
+      notification: { channelId: "alertas_pulso_firme", sound: "default" },
+    },
     apns: { payload: { aps: { sound: "default" } } },
   });
 

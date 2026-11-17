@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/preferencias_controller.dart';
@@ -35,27 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _sessao.iniciar(uid);
-    _notificacoes.registrar(uid, onMensagem: _mostrarNotificacao);
-  }
-
-  // Notificação recebida com o app aberto.
-  void _mostrarNotificacao(RemoteMessage mensagem) {
-    final notificacao = mensagem.notification;
-    if (!mounted || notificacao == null) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppColors.primaria,
-        duration: const Duration(seconds: 8),
-        content: Text(
-          [notificacao.title, notificacao.body]
-              .whereType<String>()
-              .join('\n'),
-        ),
-      ),
-    );
+    // Notificações recebidas com o app aberto também aparecem na barra de
+    // status (ver NotificacaoService).
+    _notificacoes.registrar(uid);
   }
 
   @override
