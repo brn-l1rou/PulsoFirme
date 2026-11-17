@@ -1,7 +1,25 @@
 const { GoogleGenAI } = require("@google/genai");
 
-// Alias que sempre aponta para o modelo Flash mais recente da Gemini API.
-const MODELO_IA = "gemini-flash-latest";
+// Modelos tentados em ordem: o alias do Flash mais recente e, se ele não
+// existir no serviço da chave usada, versões fixas do Flash.
+const MODELOS_IA = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+
+// O valor do segredo às vezes vem com espaços, quebra de linha ou aspas
+// coladas junto com a chave.
+function limparChave(chave) {
+  return String(chave || "").trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
+// Chaves do AI Studio começam com "AIza" e usam a Gemini API; chaves do
+// Vertex AI (console do Google Cloud) começam com "AQ." e usam o Vertex AI
+// no modo express. Com o cliente errado, o Google responde "API key not valid".
+function criarCliente(chave) {
+  const vertex = chave.startsWith("AQ.");
+  return {
+    ia: new GoogleGenAI(vertex ? { vertexai: true, apiKey: chave } : { apiKey: chave }),
+    servico: vertex ? "Vertex AI (express)" : "Gemini API",
+  };
+}
 
 // Coeficiente de variação acima de 36% indica glicemia instável
 // (consenso internacional de monitorização de glicose).
@@ -171,9 +189,28 @@ function analisarEstatisticas(medicoes, limites, dias) {
 // RN19/RN21: a IA só reescreve os dados calculados acima em linguagem
 // simples; ela não diagnostica nem sugere mudanças de tratamento.
 async function gerarTextoComIa(chaveApi, estatisticas, limites) {
-  const ia = new GoogleGenAI({ apiKey: chaveApi });
+  const { ia, servico } = criarCliente(limparChave(chaveApi));
+  let ultimoErro;
+  for (const modelo of MODELOS_IA) {
+    try {
+      const texto = await gerarComModelo(ia, modelo, estatisticas, limites);
+      console.log(`Análise gerada com ${modelo} via ${servico}`);
+      return texto;
+    } catch (erro) {
+      ultimoErro = erro;
+      // Só tenta o próximo modelo se este não existir; erro de chave ou de
+      // cota se repetiria em todos.
+      if (erro?.status !== 404) {
+        throw erro;
+      }
+    }
+  }
+  throw ultimoErro;
+}
+
+async function gerarComModelo(ia, modelo, estatisticas, limites) {
   const resposta = await ia.models.generateContent({
-    model: MODELO_IA,
+    model: modelo,
     contents: JSON.stringify({ limites, ...estatisticas }),
     config: {
       systemInstruction:

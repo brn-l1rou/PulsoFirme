@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../controllers/preferencias_controller.dart';
 import '../controllers/sessao_controller.dart';
 import '../services/auth_service.dart';
+import '../services/notificacao_service.dart';
 import '../services/pin_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/validadores.dart';
@@ -23,7 +24,9 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   final PreferenciasController _preferencias = PreferenciasController.instancia;
   final PinService _pinService = PinService();
   final AuthService _authService = AuthService();
+  final NotificacaoService _notificacoes = NotificacaoService();
   bool? _temPin;
+  bool? _notificacoesAtivas;
 
   String get _uid => widget.sessao.usuario!.uid;
 
@@ -35,6 +38,39 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         setState(() => _temPin = tem);
       }
     });
+    _notificacoes.notificacoesAtivas().then((ativas) {
+      if (mounted) {
+        setState(() => _notificacoesAtivas = ativas);
+      }
+    });
+  }
+
+  // RF10: se a permissão foi negada, o usuário não recebe nenhum alerta.
+  Future<void> _ativarNotificacoes() async {
+    final ativas = await _notificacoes.pedirPermissao();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _notificacoesAtivas = ativas);
+    if (!ativas) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Ative as notificações'),
+          content: const Text(
+            'O Android bloqueou as notificações do Pulso Firme. Abra as '
+            'Configurações do celular > Apps > Pulso Firme > Notificações e '
+            'ative "Permitir notificações" e o canal "Alertas de glicemia".',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendi'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _alternarPin(bool ativar) async {
@@ -171,6 +207,27 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                   Navigator.pop(context);
                 }
               },
+            ),
+            _secao('Notificações'),
+            ListTile(
+              leading: Icon(
+                _notificacoesAtivas == false
+                    ? Icons.notifications_off_outlined
+                    : Icons.notifications_active_outlined,
+                color: _notificacoesAtivas == false ? AppColors.primaria : null,
+              ),
+              title: Text(
+                _notificacoesAtivas == false
+                    ? 'Notificações desativadas'
+                    : 'Notificações ativadas',
+              ),
+              subtitle: Text(
+                _notificacoesAtivas == false
+                    ? 'Você não receberá alertas, lembretes nem pedidos de SOS. '
+                        'Toque para ativar.'
+                    : 'Alertas de glicemia, SOS, lembretes e medições perdidas.',
+              ),
+              onTap: _notificacoesAtivas == false ? _ativarNotificacoes : null,
             ),
             _secao('Segurança'),
             SwitchListTile(
